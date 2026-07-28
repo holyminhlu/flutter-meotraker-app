@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Environment / secrets
+.env
+backend/.env
+*.pem
+KhoiDong.txt
+
+# Local scratch / test assets
+backend/tmp_food.jpg
+
+# Uploaded meal images
+backend/uploads/meals/
+
+# Flutter / Dart
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/.pub-cache/
+mobile/.pub/
+mobile/build/
+mobile/**/Generated.xcconfig
+mobile/**/flutter_export_environment.sh
+mobile/.android/
+mobile/.ios/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs / coverage
+logs/
+*.log
+coverage/
+.nyc_output/
+
+# OS
+desktop.ini
