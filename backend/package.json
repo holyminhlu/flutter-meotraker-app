@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "db:migrate": "node src/config/runMigrations.js"
+    "db:migrate": "node src/config/runMigrations.js",
+    "db:seed-admin": "node scripts/seed_admin.js"
   },
   "keywords": [
     "express",

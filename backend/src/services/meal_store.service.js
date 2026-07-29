@@ -4,7 +4,10 @@ const sharp = require('sharp');
 const db = require('../config/db');
 const config = require('../config');
 
-const UPLOAD_ROOT = path.join(__dirname, '../../uploads/meals');
+// Cho phép override bằng UPLOADS_DIR (Render Persistent Disk); mặc định local.
+const UPLOAD_ROOT = config.uploadsDir
+  ? path.join(config.uploadsDir, 'meals')
+  : path.join(__dirname, '../../uploads/meals');
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });

@@ -1,5 +1,29 @@
 require('dotenv').config();
 
+function parseDatabaseUrl(url) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return {
+      host: parsed.hostname,
+      port: Number(parsed.port) || 5432,
+      database: parsed.pathname.replace(/^\//, '') || 'meo_traker',
+      user: decodeURIComponent(parsed.username),
+      password: decodeURIComponent(parsed.password),
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+const fromUrl = parseDatabaseUrl(process.env.DATABASE_URL);
+
+// Bật SSL khi chạy production hoặc khi dịch vụ (Aiven/Render) yêu cầu.
+const dbSsl =
+  process.env.DB_SSL === 'true' ||
+  process.env.NODE_ENV === 'production' ||
+  Boolean(process.env.DATABASE_URL);
+
 module.exports = {
   port: process.env.PORT || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -8,12 +32,16 @@ module.exports = {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
   db: {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 5432,
-    database: process.env.DB_NAME || 'meo_traker',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || '',
+    connectionString: process.env.DATABASE_URL || '',
+    host: fromUrl?.host || process.env.DB_HOST || 'localhost',
+    port: fromUrl?.port || Number(process.env.DB_PORT) || 5432,
+    database: fromUrl?.database || process.env.DB_NAME || 'meo_traker',
+    user: fromUrl?.user || process.env.DB_USER || 'postgres',
+    password: fromUrl?.password || process.env.DB_PASSWORD || '',
+    ssl: dbSsl,
   },
+  // Thư mục lưu ảnh bữa ăn. Trên Render nên trỏ vào Persistent Disk.
+  uploadsDir: process.env.UPLOADS_DIR || '',
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || '',
     model: process.env.GEMINI_MEAL_MODEL || 'gemini-3.5-flash-lite',
