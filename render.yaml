@@ -25,16 +25,10 @@ services:
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
-    # Ảnh bữa ăn tồn tại qua các lần deploy. Gỡ khối disk nếu dùng object storage.
-    disk:
-      name: meo-uploads
-      mountPath: /var/data/uploads
-      sizeGB: 1
+    # Free tier không hỗ trợ Persistent Disk — ảnh upload sẽ mất khi redeploy.
     envVars:
       - key: NODE_ENV
         value: production
-      - key: UPLOADS_DIR
-        value: /var/data/uploads
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: OPENROUTER_MODEL
