@@ -1,9 +1,8 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:meo_traker/core/storage/app_storage.dart';
 import 'package:meo_traker/data/services/auth_service.dart';
-import 'package:path/path.dart' as p;
 
 /// Ảnh đại diện lưu local theo user id.
 class AvatarService {
@@ -14,20 +13,26 @@ class AvatarService {
 
   String? get _userId => AuthService.instance.currentUser?.id;
 
-  Future<File?> avatarFile() async {
+  String? _keyFor(String uid) => 'avatar_$uid.jpg';
+
+  Future<Uint8List?> avatarBytes() async {
     final uid = _userId;
     if (uid == null || uid.isEmpty) return null;
-    final file = await AppStorage.file('avatar_$uid.jpg');
-    if (await file.exists()) return file;
+    return AppStorage.readBytes(_keyFor(uid)!);
+  }
+
+  /// Key ổn định để UI biết avatar đã có (không dùng path file trên web).
+  Future<String?> avatarKey() async {
+    final uid = _userId;
+    if (uid == null || uid.isEmpty) return null;
+    final key = _keyFor(uid)!;
+    if (await AppStorage.exists(key)) return key;
     return null;
   }
 
-  Future<String?> avatarPath() async {
-    final f = await avatarFile();
-    return f?.path;
-  }
-
-  Future<File?> pickAndSave({ImageSource source = ImageSource.gallery}) async {
+  Future<Uint8List?> pickAndSave({
+    ImageSource source = ImageSource.gallery,
+  }) async {
     final uid = _userId;
     if (uid == null || uid.isEmpty) return null;
 
@@ -40,28 +45,21 @@ class AvatarService {
     if (x == null) return null;
 
     final bytes = await x.readAsBytes();
-    final dest = await AppStorage.file('avatar_$uid.jpg');
-    await dest.writeAsBytes(bytes, flush: true);
+    final key = _keyFor(uid)!;
+    await AppStorage.writeBytes(key, bytes);
 
     // Xóa bản cũ khác đuôi nếu có.
-    final dir = await AppStorage.dataDir();
     for (final name in ['avatar_$uid.png', 'avatar_$uid.webp']) {
-      final old = File(p.join(dir.path, name));
-      if (await old.exists()) {
-        try {
-          await old.delete();
-        } catch (_) {}
-      }
+      await AppStorage.delete(name);
     }
-    return dest;
+    return Uint8List.fromList(bytes);
   }
 
   Future<void> clear() async {
-    final f = await avatarFile();
-    if (f != null && await f.exists()) {
-      try {
-        await f.delete();
-      } catch (_) {}
-    }
+    final uid = _userId;
+    if (uid == null || uid.isEmpty) return;
+    await AppStorage.delete(_keyFor(uid)!);
+    await AppStorage.delete('avatar_$uid.png');
+    await AppStorage.delete('avatar_$uid.webp');
   }
 }

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:meo_traker/core/meal/meal_schedule.dart';
@@ -39,7 +38,7 @@ class ProgressService extends ChangeNotifier {
   /// Lịch sử cân nặng (append khi cập nhật).
   final List<WeightLog> weightHistory = [];
 
-  Future<File> _file() => AppStorage.file('progress.json');
+  static const _key = 'progress.json';
 
   String todayKey([DateTime? now]) => AppClock.instance.todayKey(now);
 
@@ -47,10 +46,10 @@ class ProgressService extends ChangeNotifier {
 
   Future<void> load() async {
     try {
-      final file = await _file();
-      if (await file.exists()) {
+      final text = await AppStorage.readString(_key);
+      if (text != null) {
         final raw =
-            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+            jsonDecode(text) as Map<String, dynamic>;
         points = (raw['points'] as num?)?.toInt() ?? 0;
         streak = (raw['streak'] as num?)?.toInt() ?? 0;
         lastStreakDate = raw['lastStreakDate'] as String?;
@@ -485,8 +484,8 @@ class ProgressService extends ChangeNotifier {
   }
 
   Future<void> _persist() async {
-    final file = await _file();
-    await file.writeAsString(
+    await AppStorage.writeString(
+      _key,
       jsonEncode({
         'points': points,
         'streak': streak,

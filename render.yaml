@@ -1,4 +1,21 @@
 services:
+  # Flutter Web (Docker + Nginx)
+  - type: web
+    name: meo-traker-web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "10000"
+      # Build-time: URL backend (Render Dashboard → Environment → hoặc Blueprint sync)
+      - key: API_BASE_URL
+        sync: false
+
+  # Express API (Node)
   - type: web
     name: meo-traker-api
     runtime: node
@@ -28,7 +45,6 @@ services:
         value: Meo Traker
       - key: GEMINI_MEAL_MODEL
         value: gemini-3.5-flash-lite
-      # Điền thủ công trong Render Dashboard (sync:false = không đọc từ file).
       - key: DATABASE_URL
         sync: false
       - key: DB_SSL

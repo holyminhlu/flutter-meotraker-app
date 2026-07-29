@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:meo_traker/core/meal/habit_slogans.dart';
@@ -38,7 +37,7 @@ class MealScheduleService extends ChangeNotifier {
   List<EncouragementWindow> get encouragementWindows =>
       buildEncouragementWindows(breakfast);
 
-  Future<File> _file() => AppStorage.file('meal_schedule.json');
+  static const _key = 'meal_schedule.json';
 
   String _todayKey([DateTime? now]) {
     final d = now ?? AppClock.instance.now();
@@ -47,12 +46,12 @@ class MealScheduleService extends ChangeNotifier {
 
   Future<void> load() async {
     try {
-      final file = await _file();
-      if (!await file.exists()) {
+      final text = await AppStorage.readString(_key);
+      if (text == null) {
         _ensureToday();
         return;
       }
-      final raw = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final raw = jsonDecode(text) as Map<String, dynamic>;
       final bh = (raw['breakfastHour'] as num?)?.toInt() ?? 7;
       final bm = (raw['breakfastMinute'] as num?)?.toInt() ?? 0;
       breakfast = TimeOfDay(hour: bh, minute: bm);
@@ -137,8 +136,8 @@ class MealScheduleService extends ChangeNotifier {
   }
 
   Future<void> _persist() async {
-    final file = await _file();
-    await file.writeAsString(
+    await AppStorage.writeString(
+      _key,
       jsonEncode({
         'breakfastHour': breakfast.hour,
         'breakfastMinute': breakfast.minute,

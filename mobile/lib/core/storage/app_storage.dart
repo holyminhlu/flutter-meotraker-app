@@ -1,38 +1,23 @@
-import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'app_storage_io.dart'
+    if (dart.library.html) 'app_storage_web.dart' as impl;
 
-/// Thư mục dữ liệu local:
-/// - Windows/macOS/Linux: ~/.meo_traker
-/// - Android/iOS: app documents (có quyền ghi)
+/// Lưu key-value local (file trên IO, SharedPreferences trên web).
 class AppStorage {
   AppStorage._();
 
-  static Directory? _cached;
+  static Future<bool> exists(String name) => impl.exists(name);
 
-  static Future<Directory> dataDir() async {
-    if (_cached != null) return _cached!;
+  static Future<String?> readString(String name) => impl.readString(name);
 
-    if (Platform.isAndroid || Platform.isIOS) {
-      final docs = await getApplicationDocumentsDirectory();
-      final dir = Directory(p.join(docs.path, 'meo_traker'));
-      if (!await dir.exists()) await dir.create(recursive: true);
-      _cached = dir;
-      return dir;
-    }
+  static Future<void> writeString(String name, String content) =>
+      impl.writeString(name, content);
 
-    final home = Platform.environment['USERPROFILE'] ??
-        Platform.environment['HOME'] ??
-        Directory.systemTemp.path;
-    final dir = Directory(p.join(home, '.meo_traker'));
-    if (!await dir.exists()) await dir.create(recursive: true);
-    _cached = dir;
-    return dir;
-  }
+  static Future<Uint8List?> readBytes(String name) => impl.readBytes(name);
 
-  static Future<File> file(String name) async {
-    final dir = await dataDir();
-    return File(p.join(dir.path, name));
-  }
+  static Future<void> writeBytes(String name, List<int> bytes) =>
+      impl.writeBytes(name, bytes);
+
+  static Future<void> delete(String name) => impl.delete(name);
 }

@@ -1,5 +1,4 @@
-import 'dart:io' show Platform;
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:meo_traker/core/constants/app_constants.dart';
 import 'package:meo_traker/core/theme/app_theme.dart';
@@ -31,7 +30,7 @@ Future<void> main() async {
   Widget app = const MeoTrakerApp();
   // Flutter Windows accessibility bridge can spam AXTree errors in debug;
   // disabling semantics on desktop avoids console noise without affecting mobile.
-  if (Platform.isWindows) {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
     app = ExcludeSemantics(child: app);
   }
   runApp(app);

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:exif/exif.dart';
@@ -85,15 +84,6 @@ class ImageMetaReader {
       if (s.isNotEmpty) return s;
     }
     return null;
-  }
-
-  static Future<ImageMetaSnapshot> readFile(File file) async {
-    final bytes = await file.readAsBytes();
-    return readBytes(
-      bytes,
-      path: file.path,
-      fileModifiedAt: await file.lastModified(),
-    );
   }
 
   static Future<ImageMetaSnapshot> readBytes(

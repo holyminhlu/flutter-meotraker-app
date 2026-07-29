@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:meo_traker/core/meal/meal_schedule.dart';
@@ -57,7 +56,7 @@ class MealLogService extends ChangeNotifier {
   String _dateKey = '';
   final Map<MealPeriod, MealFoodLog> _logs = {};
 
-  Future<File> _file() => AppStorage.file('meal_food_logs.json');
+  static const _key = 'meal_food_logs.json';
 
   String _todayKey([DateTime? now]) {
     final d = now ?? AppClock.instance.now();
@@ -79,13 +78,13 @@ class MealLogService extends ChangeNotifier {
 
   Future<void> load() async {
     try {
-      final file = await _file();
-      if (!await file.exists()) {
+      final text = await AppStorage.readString(_key);
+      if (text == null) {
         _ensureToday();
         notifyListeners();
         return;
       }
-      final raw = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final raw = jsonDecode(text) as Map<String, dynamic>;
       _dateKey = raw['dateKey']?.toString() ?? '';
       final today = _todayKey();
       _logs.clear();
@@ -148,8 +147,8 @@ class MealLogService extends ChangeNotifier {
   }
 
   Future<void> _persist() async {
-    final file = await _file();
-    await file.writeAsString(
+    await AppStorage.writeString(
+      _key,
       jsonEncode({
         'dateKey': _dateKey,
         'logs': {

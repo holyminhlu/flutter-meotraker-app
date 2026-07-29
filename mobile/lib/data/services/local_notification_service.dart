@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -25,6 +23,11 @@ class LocalNotificationService {
 
   Future<void> init() async {
     if (_ready) return;
+    // Web không hỗ trợ local notifications của plugin này.
+    if (kIsWeb) {
+      _ready = true;
+      return;
+    }
 
     tzdata.initializeTimeZones();
     try {
@@ -59,7 +62,7 @@ class LocalNotificationService {
   }
 
   Future<void> _ensureAndroidChannel() async {
-    if (kIsWeb || !Platform.isAndroid) return;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await android?.createNotificationChannel(
@@ -74,8 +77,9 @@ class LocalNotificationService {
 
   Future<bool> requestPermission() async {
     if (!_ready) await init();
+    if (kIsWeb) return false;
 
-    if (!kIsWeb && Platform.isAndroid) {
+    if (defaultTargetPlatform == TargetPlatform.android) {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
       try {
@@ -87,7 +91,7 @@ class LocalNotificationService {
       return true;
     }
 
-    if (!kIsWeb && Platform.isIOS) {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
       final ios = _plugin.resolvePlatformSpecificImplementation<
           IOSFlutterLocalNotificationsPlugin>();
       final granted = await ios?.requestPermissions(
@@ -127,6 +131,7 @@ class LocalNotificationService {
     required String title,
     required String body,
   }) async {
+    if (kIsWeb) return;
     if (!_ready) await init();
     await _plugin.show(
       id: id,
@@ -138,6 +143,7 @@ class LocalNotificationService {
 
   /// Huỷ lịch + đặt lại lịch hàng ngày theo cài đặt hiện tại.
   Future<void> rescheduleAll() async {
+    if (kIsWeb) return;
     if (!_ready) await init();
     await _plugin.cancelAll();
 

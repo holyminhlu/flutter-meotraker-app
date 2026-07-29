@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:meo_traker/core/storage/app_storage.dart';
@@ -16,13 +15,13 @@ class ThemeSettingsService extends ChangeNotifier {
   bool encouragementReminders = true;
   bool compactLists = false;
 
-  Future<File> _file() => AppStorage.file('settings.json');
+  static const _key = 'settings.json';
 
   Future<void> load() async {
     try {
-      final file = await _file();
-      if (!await file.exists()) return;
-      final raw = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final text = await AppStorage.readString(_key);
+      if (text == null) return;
+      final raw = jsonDecode(text) as Map<String, dynamic>;
       isDark = raw['isDark'] as bool? ?? false;
       mealReminders = raw['mealReminders'] as bool? ?? true;
       encouragementReminders = raw['encouragementReminders'] as bool? ?? true;
@@ -32,8 +31,8 @@ class ThemeSettingsService extends ChangeNotifier {
   }
 
   Future<void> _persist() async {
-    final file = await _file();
-    await file.writeAsString(
+    await AppStorage.writeString(
+      _key,
       jsonEncode({
         'isDark': isDark,
         'mealReminders': mealReminders,

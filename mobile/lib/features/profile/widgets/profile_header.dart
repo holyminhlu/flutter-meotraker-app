@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -32,7 +32,7 @@ class ProfileHeader extends StatefulWidget {
 }
 
 class _ProfileHeaderState extends State<ProfileHeader> {
-  String? _avatarPath;
+  Uint8List? _avatarBytes;
   bool _busy = false;
 
   @override
@@ -42,9 +42,9 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   }
 
   Future<void> _loadAvatar() async {
-    final path = await AvatarService.instance.avatarPath();
+    final bytes = await AvatarService.instance.avatarBytes();
     if (!mounted) return;
-    setState(() => _avatarPath = path);
+    setState(() => _avatarBytes = bytes);
   }
 
   Future<void> _pickAvatar() async {
@@ -65,7 +65,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
               title: const Text('Chụp ảnh mới'),
               onTap: () => Navigator.pop(ctx, 'camera'),
             ),
-            if (_avatarPath != null)
+            if (_avatarBytes != null)
               ListTile(
                 leading: Icon(Icons.delete_outline, color: AppColors.error),
                 title: Text(
@@ -85,14 +85,15 @@ class _ProfileHeaderState extends State<ProfileHeader> {
       if (action == 'remove') {
         await AvatarService.instance.clear();
         if (!mounted) return;
-        setState(() => _avatarPath = null);
+        setState(() => _avatarBytes = null);
       } else {
         final source =
             action == 'camera' ? ImageSource.camera : ImageSource.gallery;
-        final file = await AvatarService.instance.pickAndSave(source: source);
+        final bytes =
+            await AvatarService.instance.pickAndSave(source: source);
         if (!mounted) return;
-        if (file != null) {
-          setState(() => _avatarPath = file.path);
+        if (bytes != null) {
+          setState(() => _avatarBytes = bytes);
         }
       }
     } finally {
@@ -102,7 +103,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
 
   @override
   Widget build(BuildContext context) {
-    final hasAvatar = _avatarPath != null && File(_avatarPath!).existsSync();
+    final hasAvatar = _avatarBytes != null && _avatarBytes!.isNotEmpty;
 
     return Column(
       children: [
@@ -129,7 +130,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
                       ],
                       image: hasAvatar
                           ? DecorationImage(
-                              image: FileImage(File(_avatarPath!)),
+                              image: MemoryImage(_avatarBytes!),
                               fit: BoxFit.cover,
                             )
                           : null,

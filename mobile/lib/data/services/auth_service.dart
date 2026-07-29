@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:meo_traker/core/config/api_config.dart';
@@ -25,14 +24,14 @@ class AuthService {
 
   bool get isLoggedIn => token != null && token!.isNotEmpty;
 
-  Future<File> _sessionFile() => AppStorage.file('session.json');
+  static const _sessionKey = 'session.json';
 
   Future<void> loadSession() async {
     try {
-      final file = await _sessionFile();
-      if (!await file.exists()) return;
+      final text = await AppStorage.readString(_sessionKey);
+      if (text == null) return;
 
-      final raw = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final raw = jsonDecode(text) as Map<String, dynamic>;
       token = raw['token'] as String?;
       final userJson = raw['user'];
       if (userJson is Map<String, dynamic>) {
@@ -154,10 +153,7 @@ class AuthService {
     token = null;
     currentUser = null;
     try {
-      final file = await _sessionFile();
-      if (await file.exists()) {
-        await file.delete();
-      }
+      await AppStorage.delete(_sessionKey);
     } catch (_) {}
   }
 
@@ -233,8 +229,8 @@ class AuthService {
   Future<void> _persistSession(String authToken, User user) async {
     token = authToken;
     currentUser = user;
-    final file = await _sessionFile();
-    await file.writeAsString(
+    await AppStorage.writeString(
+      _sessionKey,
       jsonEncode({
         'token': authToken,
         'user': user.toJson(),

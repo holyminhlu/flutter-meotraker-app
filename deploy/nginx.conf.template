@@ -1,0 +1,34 @@
+server {
+    listen       ${PORT};
+    listen  [::]:${PORT};
+    server_name  _;
+    root   /usr/share/nginx/html;
+    index  index.html;
+
+    # Flutter web assets — cache dài
+    location /assets/ {
+        expires 7d;
+        add_header Cache-Control "public";
+        try_files $uri =404;
+    }
+
+    location /canvaskit/ {
+        expires 7d;
+        add_header Cache-Control "public";
+        try_files $uri =404;
+    }
+
+    # SPA: mọi route về index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Không cache index (để nhận bản build mới)
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 256;
+}

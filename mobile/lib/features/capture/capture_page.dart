@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -53,10 +52,8 @@ class _CapturePageState extends State<CapturePage> {
       final bytes = await x.readAsBytes();
       final meta = await ImageMetaReader.readBytes(
         bytes,
-        path: x.path.isNotEmpty ? x.path : 'picked.jpg',
-        fileModifiedAt: x.path.isNotEmpty && File(x.path).existsSync()
-            ? await File(x.path).lastModified()
-            : null,
+        path: x.name.isNotEmpty ? x.name : 'picked.jpg',
+        fileModifiedAt: null,
       );
       if (!mounted) return;
 
