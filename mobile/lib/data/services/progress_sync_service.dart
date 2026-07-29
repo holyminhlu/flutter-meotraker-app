@@ -38,6 +38,7 @@ class ProgressSyncService {
               'mealDinner': meals.isCompleted(MealPeriod.dinner),
               'waterSlots': p.waterSlots,
               'exerciseSlots': p.exerciseSlots,
+              'exerciseSessionAwards': p.exerciseSessionAwards,
               'points': p.points,
               'streakDays': p.displayStreak,
               'awardedMeal': p.awardedMeal,

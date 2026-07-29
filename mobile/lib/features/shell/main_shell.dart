@@ -6,6 +6,7 @@ import 'package:meo_traker/core/theme/app_colors.dart';
 import 'package:meo_traker/core/time/app_clock.dart';
 import 'package:meo_traker/data/services/meal_schedule_service.dart';
 import 'package:meo_traker/features/capture/capture_page.dart';
+import 'package:meo_traker/features/chat/chat_overlay.dart';
 import 'package:meo_traker/features/challenges/challenges_page.dart';
 import 'package:meo_traker/features/home/home_page.dart';
 import 'package:meo_traker/features/profile/profile_page.dart';
@@ -98,16 +99,23 @@ class _MainShellState extends State<MainShell> {
     final canCapture = _canCapture;
 
     return Scaffold(
-      body: IndexedStack(
-        index: _stackIndex,
+      body: Stack(
         children: [
-          HomePage(
-            onCaptureTap: _openCapture,
-            onSelectTab: _selectTab,
+          IndexedStack(
+            index: _stackIndex,
+            children: [
+              HomePage(
+                onCaptureTap: _openCapture,
+                onSelectTab: _selectTab,
+              ),
+              const ChallengesPage(),
+              const StatsPage(),
+              const ProfilePage(),
+            ],
           ),
-          const ChallengesPage(),
-          const StatsPage(),
-          const ProfilePage(),
+          Positioned.fill(
+            child: ChatOverlay(onOpenChallenges: () => _selectTab(1)),
+          ),
         ],
       ),
       bottomNavigationBar: SafeArea(

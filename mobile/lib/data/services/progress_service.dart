@@ -27,6 +27,8 @@ class ProgressService extends ChangeNotifier {
   String _dateKey = '';
   List<bool> waterSlots = List<bool>.filled(6, false);
   List<bool> exerciseSlots = List<bool>.filled(3, false);
+  /// Slot nào đã hoàn thành đủ phiên tập và nhận +1 điểm.
+  List<bool> exerciseSessionAwards = List<bool>.filled(3, false);
   bool awardedMeal = false;
   bool awardedWater = false;
   bool awardedExercise = false;
@@ -98,6 +100,7 @@ class ProgressService extends ChangeNotifier {
   void _loadTodayFromRaw(Map<String, dynamic> raw) {
     waterSlots = _boolList(raw['waterSlots'], 6);
     exerciseSlots = _boolList(raw['exerciseSlots'], 3);
+    exerciseSessionAwards = _boolList(raw['exerciseSessionAwards'], 3);
     awardedMeal = raw['awardedMeal'] as bool? ?? false;
     awardedWater = raw['awardedWater'] as bool? ?? false;
     awardedExercise = raw['awardedExercise'] as bool? ?? false;
@@ -117,6 +120,7 @@ class ProgressService extends ChangeNotifier {
     _dateKey = today;
     waterSlots = List<bool>.filled(6, false);
     exerciseSlots = List<bool>.filled(3, false);
+    exerciseSessionAwards = List<bool>.filled(3, false);
     awardedMeal = false;
     awardedWater = false;
     awardedExercise = false;
@@ -142,8 +146,12 @@ class ProgressService extends ChangeNotifier {
         meals.completed[MealPeriod.dinner] ?? c['dinner'] as bool? ?? false;
 
     final water = _boolList(raw['waterSlots'], 6).where((e) => e).length;
-    final exercise =
-        _boolList(raw['exerciseSlots'], 3).take(exerciseRequired).where((e) => e).length;
+    final exercise = _boolList(raw['exerciseSlots'], 3)
+        .take(exerciseRequired)
+        .where((e) => e)
+        .length;
+    final exerciseSessionPoints =
+        _boolList(raw['exerciseSessionAwards'], 3).where((e) => e).length;
 
     history[dateKey] = DayProgress(
       breakfast: breakfast,
@@ -156,7 +164,9 @@ class ProgressService extends ChangeNotifier {
       pointsEarned: (raw['dayPointsEarned'] as num?)?.toInt() ??
           ((raw['awardedMeal'] == true ? mealPoints : 0) +
               (raw['awardedWater'] == true ? waterPoints : 0) +
-              (raw['awardedExercise'] == true ? exercisePoints : 0)),
+              (exerciseSessionPoints > 0
+                  ? exerciseSessionPoints
+                  : (raw['awardedExercise'] == true ? exercisePoints : 0))),
     );
   }
 
@@ -203,7 +213,7 @@ class ProgressService extends ChangeNotifier {
       exerciseTotal: exerciseRequired,
       pointsEarned: (awardedMeal ? mealPoints : 0) +
           (awardedWater ? waterPoints : 0) +
-          (awardedExercise ? exercisePoints : 0),
+          exerciseSessionPointsEarned,
     );
   }
 
@@ -220,6 +230,9 @@ class ProgressService extends ChangeNotifier {
 
   bool get exerciseComplete => exerciseRequiredDone >= exerciseRequired;
 
+  int get exerciseSessionPointsEarned =>
+      exerciseSessionAwards.where((e) => e).length;
+
   bool get mealComplete {
     final m = MealScheduleService.instance;
     return m.isCompleted(MealPeriod.breakfast) &&
@@ -230,7 +243,7 @@ class ProgressService extends ChangeNotifier {
   int get todayEarned =>
       (awardedMeal ? mealPoints : 0) +
       (awardedWater ? waterPoints : 0) +
-      (awardedExercise ? exercisePoints : 0);
+      exerciseSessionPointsEarned;
 
   int get displayPoints => points; // points already include today's awards
 
@@ -274,15 +287,9 @@ class ProgressService extends ChangeNotifier {
       awardedWater = false;
     }
 
-    // Exercise
-    if (exerciseComplete && !awardedExercise) {
-      points += exercisePoints;
-      awardedExercise = true;
-      await _touchStreak();
-    } else if (!exerciseComplete && awardedExercise) {
-      points = (points - exercisePoints).clamp(0, 999999);
-      awardedExercise = false;
-    }
+    // Exercise completion remains a status flag. Points are awarded only after
+    // completing a timed workout through [completeExerciseSession].
+    awardedExercise = exerciseComplete;
   }
 
   Future<void> setWaterSlot(int index, bool value) async {
@@ -315,6 +322,29 @@ class ProgressService extends ChangeNotifier {
     await setExerciseSlot(index, !exerciseSlots[index]);
   }
 
+  /// Ghi nhận một phiên tập đã chạy hết giáo án.
+  ///
+  /// Mỗi slot chỉ được +1 điểm một lần trong ngày.
+  Future<ExerciseSessionResult> completeExerciseSession(int index) async {
+    await ensureToday();
+    if (index < 0 || index >= exerciseSlots.length) {
+      return const ExerciseSessionResult(pointAwarded: false);
+    }
+
+    exerciseSlots[index] = true;
+    var pointAwarded = false;
+    if (!exerciseSessionAwards[index]) {
+      exerciseSessionAwards[index] = true;
+      points += exercisePoints;
+      pointAwarded = true;
+      await _touchStreak();
+    }
+    awardedExercise = exerciseComplete;
+    await _persist();
+    notifyListeners();
+    return ExerciseSessionResult(pointAwarded: pointAwarded);
+  }
+
   /// Home checklist: tăng 1 ly nước → bật slot tiếp theo.
   Future<void> addWaterGlass() async {
     await ensureToday();
@@ -345,6 +375,7 @@ class ProgressService extends ChangeNotifier {
     if (resetDaily) {
       waterSlots = List<bool>.filled(6, false);
       exerciseSlots = List<bool>.filled(3, false);
+      exerciseSessionAwards = List<bool>.filled(3, false);
       awardedMeal = false;
       awardedWater = false;
       awardedExercise = false;
@@ -463,6 +494,7 @@ class ProgressService extends ChangeNotifier {
         'dateKey': _dateKey,
         'waterSlots': waterSlots,
         'exerciseSlots': exerciseSlots,
+        'exerciseSessionAwards': exerciseSessionAwards,
         'awardedMeal': awardedMeal,
         'awardedWater': awardedWater,
         'awardedExercise': awardedExercise,
@@ -478,6 +510,12 @@ class ProgressService extends ChangeNotifier {
     // ignore: unawaited_futures
     ProgressSyncService.instance.syncToday();
   }
+}
+
+class ExerciseSessionResult {
+  const ExerciseSessionResult({required this.pointAwarded});
+
+  final bool pointAwarded;
 }
 
 class WeightLog {

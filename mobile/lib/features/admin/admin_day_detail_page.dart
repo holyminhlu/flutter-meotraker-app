@@ -192,7 +192,9 @@ class _AdminDayDetailPageState extends State<AdminDayDetailPage> {
                 'Trưa ${_bool(_progress!['mealLunch'])} · '
                 'Tối ${_bool(_progress!['mealDinner'])} · '
                 'Nước ${_countTrue(_progress!['waterSlots'])}/6 · '
-                'VĐ ${_countTrue(_progress!['exerciseSlots'])}/3',
+                'VĐ ${_countTrue(_progress!['exerciseSlots'])}/3 · '
+                'Phiên tập ${_countTrue(_progress!['exerciseSessionAwards'])}/3 '
+                '(+${_countTrue(_progress!['exerciseSessionAwards'])} điểm VĐ)',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,

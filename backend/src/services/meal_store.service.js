@@ -144,19 +144,24 @@ async function upsertDailyProgress(userId, payload) {
     ? payload.exerciseSlots.slice(0, 3)
     : [false, false, false];
   while (exercise.length < 3) exercise.push(false);
+  const sessionAwards = Array.isArray(payload.exerciseSessionAwards)
+    ? payload.exerciseSessionAwards.slice(0, 3)
+    : [false, false, false];
+  while (sessionAwards.length < 3) sessionAwards.push(false);
 
   const result = await db.query(
     `INSERT INTO daily_progress (
       user_id, date_key, meal_breakfast, meal_lunch, meal_dinner,
-      water_slots, exercise_slots, points, streak_days,
+      water_slots, exercise_slots, exercise_session_awards, points, streak_days,
       awarded_meal, awarded_water, awarded_exercise, updated_at
-    ) VALUES ($1,$2::date,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW())
+    ) VALUES ($1,$2::date,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, NOW())
     ON CONFLICT (user_id, date_key) DO UPDATE SET
       meal_breakfast = EXCLUDED.meal_breakfast,
       meal_lunch = EXCLUDED.meal_lunch,
       meal_dinner = EXCLUDED.meal_dinner,
       water_slots = EXCLUDED.water_slots,
       exercise_slots = EXCLUDED.exercise_slots,
+      exercise_session_awards = EXCLUDED.exercise_session_awards,
       points = EXCLUDED.points,
       streak_days = EXCLUDED.streak_days,
       awarded_meal = EXCLUDED.awarded_meal,
@@ -172,6 +177,7 @@ async function upsertDailyProgress(userId, payload) {
       Boolean(payload.mealDinner),
       water,
       exercise,
+      sessionAwards,
       Number(payload.points) || 0,
       Number(payload.streakDays) || 0,
       Boolean(payload.awardedMeal),
@@ -194,6 +200,7 @@ function mapProgress(row) {
     mealDinner: row.meal_dinner,
     waterSlots: row.water_slots || [],
     exerciseSlots: row.exercise_slots || [],
+    exerciseSessionAwards: row.exercise_session_awards || [false, false, false],
     points: row.points,
     streakDays: row.streak_days,
     awardedMeal: row.awarded_meal,

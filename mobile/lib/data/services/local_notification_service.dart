@@ -42,9 +42,15 @@ class LocalNotificationService {
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
+    const windowsInit = WindowsInitializationSettings(
+      appName: 'Meo Traker',
+      appUserModelId: 'MeoTraker.MeoTraker.App',
+      guid: '7c9f2a1e-4b8d-4f6a-9e2c-1d3b5a7c9e2f',
+    );
     const initSettings = InitializationSettings(
       android: androidInit,
       iOS: iosInit,
+      windows: windowsInit,
     );
 
     await _plugin.initialize(settings: initSettings);
@@ -112,6 +118,7 @@ class LocalNotificationService {
           presentBadge: true,
           presentSound: true,
         ),
+        windows: const WindowsNotificationDetails(),
       );
 
   /// Hiện ngay trên thanh thông báo điện thoại.

@@ -129,7 +129,8 @@ async function analyzeUserMeals(userId, range = 'today') {
     ].filter(Boolean).join('/') || 'không';
     const water = (p.waterSlots || []).filter(Boolean).length;
     const exercise = (p.exerciseSlots || []).filter(Boolean).length;
-    return `- ${p.dateKey}: bữa ${mealsDone}, nước ${water}/6, vận động ${exercise}/3, điểm ngày ${p.points}`;
+    const sessions = (p.exerciseSessionAwards || []).filter(Boolean).length;
+    return `- ${p.dateKey}: bữa ${mealsDone}, nước ${water}/6, VĐ slot ${exercise}/3, phiên tập ${sessions}/3 (+${sessions} điểm VĐ), điểm tổng ${p.points}`;
   });
 
   let aiText = null;

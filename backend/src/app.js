@@ -24,6 +24,7 @@ app.use('/api/onboarding', require('./routes/onboarding.routes'));
 app.use('/api/meals', require('./routes/meal.routes'));
 app.use('/api/progress', require('./routes/progress.routes'));
 app.use('/api/settings', require('./routes/settings.routes'));
+app.use('/api/chat', require('./routes/chat.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 
 app.use(errorHandler);

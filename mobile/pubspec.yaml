@@ -76,6 +76,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/TheDuc/
     - assets/images/ruong15d.png
     - assets/images/ruong30d.png
     - assets/videos/

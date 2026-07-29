@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:meo_traker/core/constants/app_constants.dart';
 import 'package:meo_traker/core/theme/app_theme.dart';
@@ -26,7 +28,13 @@ Future<void> main() async {
   MealScheduleService.instance.onMealCompletionChanged =
       ProgressService.instance.syncMealsFromSchedule;
   await LocalNotificationService.instance.init();
-  runApp(const MeoTrakerApp());
+  Widget app = const MeoTrakerApp();
+  // Flutter Windows accessibility bridge can spam AXTree errors in debug;
+  // disabling semantics on desktop avoids console noise without affecting mobile.
+  if (Platform.isWindows) {
+    app = ExcludeSemantics(child: app);
+  }
+  runApp(app);
 }
 
 class MeoTrakerApp extends StatefulWidget {

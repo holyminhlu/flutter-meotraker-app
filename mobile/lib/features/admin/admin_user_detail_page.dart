@@ -681,9 +681,16 @@ class _OverviewTab extends StatelessWidget {
                         ),
                         Expanded(
                           child: _MiniStat(
-                            label: 'VĐ',
+                            label: 'VĐ slot',
                             value:
                                 '${(progress!['exerciseSlots'] as List?)?.where((e) => e == true).length ?? 0}/3',
+                          ),
+                        ),
+                        Expanded(
+                          child: _MiniStat(
+                            label: 'Phiên tập',
+                            value:
+                                '${(progress!['exerciseSessionAwards'] as List?)?.where((e) => e == true).length ?? 0}/3',
                           ),
                         ),
                         Expanded(
@@ -1129,8 +1136,20 @@ class _DayTab extends StatelessWidget {
                 ),
                 _DayFlag(
                   label: 'VĐ',
-                  done: countTrue(progress!['exerciseSlots']) >= 3,
+                  done: countTrue(progress!['exerciseSlots']) >= 2,
                   value: '${countTrue(progress!['exerciseSlots'])}/3',
+                ),
+                _DayFlag(
+                  label: 'Phiên',
+                  done: countTrue(progress!['exerciseSessionAwards']) > 0,
+                  value:
+                      '${countTrue(progress!['exerciseSessionAwards'])}/3',
+                ),
+                _DayFlag(
+                  label: '+Điểm VĐ',
+                  done: countTrue(progress!['exerciseSessionAwards']) > 0,
+                  value:
+                      '+${countTrue(progress!['exerciseSessionAwards'])}',
                 ),
               ],
             ),

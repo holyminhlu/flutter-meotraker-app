@@ -18,4 +18,11 @@ module.exports = {
     apiKey: process.env.GEMINI_API_KEY || '',
     model: process.env.GEMINI_MEAL_MODEL || 'gemini-3.5-flash-lite',
   },
+  openrouter: {
+    apiKey: process.env.OPENROUTER_API_KEY || '',
+    model: process.env.OPENROUTER_MODEL || 'xiaomi/mimo-v2.5',
+    baseUrl: (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/, ''),
+    siteUrl: process.env.OPENROUTER_SITE_URL || 'https://meo-traker.local',
+    siteName: process.env.OPENROUTER_SITE_NAME || 'Meo Traker',
+  },
 };

@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS daily_progress (
   meal_dinner BOOLEAN NOT NULL DEFAULT FALSE,
   water_slots BOOLEAN[] NOT NULL DEFAULT ARRAY[false,false,false,false,false,false],
   exercise_slots BOOLEAN[] NOT NULL DEFAULT ARRAY[false,false,false],
+  exercise_session_awards BOOLEAN[] NOT NULL DEFAULT ARRAY[false,false,false],
   points INTEGER NOT NULL DEFAULT 0,
   streak_days INTEGER NOT NULL DEFAULT 0,
   awarded_meal BOOLEAN NOT NULL DEFAULT FALSE,
@@ -109,5 +110,5 @@ CREATE TABLE IF NOT EXISTS user_app_settings (
 );
 
 INSERT INTO app_meta (key, value)
-VALUES ('schema_version', '4')
+VALUES ('schema_version', '5')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
