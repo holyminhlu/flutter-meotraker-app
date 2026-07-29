@@ -4,7 +4,10 @@ function parseDatabaseUrl(url) {
   if (!url) return null;
   try {
     const parsed = new URL(url);
+    // sslmode trong URL khiến pg tự bật verify-full; SSL do config quyết định.
+    parsed.searchParams.delete('sslmode');
     return {
+      connectionString: parsed.toString(),
       host: parsed.hostname,
       port: Number(parsed.port) || 5432,
       database: parsed.pathname.replace(/^\//, '') || 'meo_traker',
@@ -32,13 +35,15 @@ module.exports = {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
   db: {
-    connectionString: process.env.DATABASE_URL || '',
+    connectionString: fromUrl?.connectionString || '',
     host: fromUrl?.host || process.env.DB_HOST || 'localhost',
     port: fromUrl?.port || Number(process.env.DB_PORT) || 5432,
     database: fromUrl?.database || process.env.DB_NAME || 'meo_traker',
     user: fromUrl?.user || process.env.DB_USER || 'postgres',
     password: fromUrl?.password || process.env.DB_PASSWORD || '',
     ssl: dbSsl,
+    // PEM của Aiven CA. Có thì xác thực đầy đủ, không thì chỉ mã hóa.
+    caCert: (process.env.DB_CA_CERT || '').replace(/\\n/g, '\n'),
   },
   // Thư mục lưu ảnh bữa ăn. Trên Render nên trỏ vào Persistent Disk.
   uploadsDir: process.env.UPLOADS_DIR || '',

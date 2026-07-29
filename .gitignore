@@ -6,7 +6,11 @@ yarn-error.log*
 
 # Environment / secrets
 .env
+.env.*
 backend/.env
+backend/.env.*
+!.env.example
+!backend/.env.example
 *.pem
 KhoiDong.txt
 

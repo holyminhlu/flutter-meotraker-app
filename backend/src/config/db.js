@@ -1,9 +1,17 @@
 const { Pool } = require('pg');
 const config = require('./index');
 
-// Aiven/Render yêu cầu TLS. rejectUnauthorized:false chấp nhận CA managed
-// mà không cần tải file ca.pem; đủ an toàn cho kết nối mã hóa.
-const ssl = config.db.ssl ? { rejectUnauthorized: false } : false;
+// Aiven/Render yêu cầu TLS. Có DB_CA_CERT thì xác thực đầy đủ;
+// nếu không, vẫn mã hóa nhưng bỏ qua kiểm tra CA self-signed của Aiven.
+function sslConfig() {
+  if (!config.db.ssl) return false;
+  if (config.db.caCert) {
+    return { ca: config.db.caCert, rejectUnauthorized: true };
+  }
+  return { rejectUnauthorized: false };
+}
+
+const ssl = sslConfig();
 
 const pool = config.db.connectionString
     ? new Pool({
