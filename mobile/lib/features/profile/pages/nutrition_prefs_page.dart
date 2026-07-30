@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:meo_traker/core/constants/app_icons.dart';
 import 'package:meo_traker/core/theme/app_colors.dart';
 import 'package:meo_traker/data/services/auth_exception.dart';
 import 'package:meo_traker/data/services/onboarding_service.dart';
 import 'package:meo_traker/features/profile/widgets/activity_level_selector.dart';
-import 'package:meo_traker/features/profile/widgets/budget_level_selector.dart';
-import 'package:meo_traker/features/profile/widgets/local_food_picker.dart';
+import 'package:meo_traker/features/profile/widgets/dietary_preferences_form.dart';
 
 class NutritionPrefsPage extends StatefulWidget {
   const NutritionPrefsPage({super.key});
@@ -15,12 +13,7 @@ class NutritionPrefsPage extends StatefulWidget {
 }
 
 class _NutritionPrefsPageState extends State<NutritionPrefsPage> {
-  List<String> _likedFoods = [];
-  List<String> _dislikedFoods = [];
-  List<String> _allergies = [];
-  List<String> _eligibleFoods = [];
-  List<String> _localFoods = [];
-  String _budget = 'medium';
+  DietaryPreferencesDraft _draft = const DietaryPreferencesDraft();
   String _activity = 'moderate';
   bool _loading = true;
   bool _saving = false;
@@ -38,147 +31,13 @@ class _NutritionPrefsPageState extends State<NutritionPrefsPage> {
       _profile = status.profile;
       final d = status.dietary;
       if (d != null) {
-        _likedFoods = ((d['likedFoods'] as List?) ?? [])
-            .map((e) => e.toString().trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-        _dislikedFoods = ((d['dislikedFoods'] as List?) ?? [])
-            .map((e) => e.toString().trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-        _allergies = ((d['allergies'] as List?) ?? [])
-            .map((e) => e.toString().trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-        _eligibleFoods = ((d['eligibleFoods'] as List?) ?? [])
-            .map((e) => e.toString().trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-        final notes = (d['localFoodNotes'] as String?) ?? '';
-        _localFoods = parseFoodSelection(notes).toList();
-        _budget = (d['budgetLevel'] as String?) ?? 'medium';
+        _draft = DietaryPreferencesDraft.fromStatus(d);
       }
       if (_profile != null) {
         _activity = (_profile!['activityLevel'] as String?) ?? 'moderate';
       }
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
-  }
-
-  Future<void> _openLikedFoodPicker() async {
-    final result = await showLikedDislikedFoodPicker(
-      context,
-      initialSelected: _likedFoods,
-    );
-    if (result == null || !mounted) return;
-    setState(() => _likedFoods = result);
-  }
-
-  Future<void> _openDislikedFoodPicker() async {
-    final result = await showLikedDislikedFoodPicker(
-      context,
-      initialSelected: _dislikedFoods,
-    );
-    if (result == null || !mounted) return;
-    setState(() => _dislikedFoods = result);
-  }
-
-  Future<void> _openAllergyFoodPicker() async {
-    final result = await showAllergyFoodPicker(
-      context,
-      initialSelected: _allergies,
-    );
-    if (result == null || !mounted) return;
-    setState(() => _allergies = result);
-  }
-
-  Future<void> _openEligibleFoodPicker() async {
-    final result = await showEligibleFoodPicker(
-      context,
-      initialSelected: _eligibleFoods,
-    );
-    if (result == null || !mounted) return;
-    setState(() => _eligibleFoods = result);
-  }
-
-  Future<void> _openLocalFoodPicker() async {
-    final result = await showLocalFoodPicker(
-      context,
-      initialSelected: _localFoods,
-    );
-    if (result == null || !mounted) return;
-    setState(() => _localFoods = result);
-  }
-
-  Widget _foodSelectField({
-    required String label,
-    required List<String> items,
-    required VoidCallback onTap,
-  }) {
-    final count = items.length;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Material(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      count == 0
-                          ? 'Chạm để chọn theo từng nhóm món'
-                          : 'Đã chọn $count món · Chạm để sửa',
-                      style: TextStyle(
-                        color: count == 0
-                            ? AppColors.textSecondary
-                            : AppColors.textPrimary,
-                        height: 1.35,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right,
-                    color: AppColors.textSecondary,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        if (count > 0) ...[
-          const SizedBox(height: 8),
-          Text(
-            items.join(', '),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-              height: 1.35,
-            ),
-          ),
-        ],
-      ],
-    );
   }
 
   Future<void> _save() async {
@@ -194,14 +53,7 @@ class _NutritionPrefsPageState extends State<NutritionPrefsPage> {
           'activityLevel': _activity,
         });
       }
-      await OnboardingService.instance.saveDietary({
-        'likedFoods': _likedFoods,
-        'dislikedFoods': _dislikedFoods,
-        'allergies': _allergies,
-        'eligibleFoods': _eligibleFoods,
-        'budgetLevel': _budget,
-        'localFoodNotes': joinFoodSelection(_localFoods),
-      });
+      await OnboardingService.instance.saveDietary(_draft.toPayload());
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Đã lưu sở thích & mức vận động')),
@@ -224,50 +76,9 @@ class _NutritionPrefsPageState extends State<NutritionPrefsPage> {
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _foodSelectField(
-                  label: 'Món thích',
-                  items: _likedFoods,
-                  onTap: _openLikedFoodPicker,
-                ),
-                const SizedBox(height: 16),
-                _foodSelectField(
-                  label: 'Món ghét',
-                  items: _dislikedFoods,
-                  onTap: _openDislikedFoodPicker,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Image.asset(AppIcons.diUng, width: 28, height: 28),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Dị ứng / hạn chế',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _foodSelectField(
-                  label: 'Dị ứng',
-                  items: _allergies,
-                  onTap: _openAllergyFoodPicker,
-                ),
-                const SizedBox(height: 16),
-                _foodSelectField(
-                  label: 'Món đủ điều kiện (địa phương)',
-                  items: _eligibleFoods,
-                  onTap: _openEligibleFoodPicker,
-                ),
-                const SizedBox(height: 16),
-                BudgetLevelSelector(
-                  value: _budget,
-                  onChanged: (v) => setState(() => _budget = v),
-                ),
-                const SizedBox(height: 16),
-                _foodSelectField(
-                  label: 'Nguồn thực phẩm địa phương',
-                  items: _localFoods,
-                  onTap: _openLocalFoodPicker,
+                DietaryPreferencesForm(
+                  value: _draft,
+                  onChanged: (v) => setState(() => _draft = v),
                 ),
                 const SizedBox(height: 16),
                 ActivityLevelSelector(
