@@ -9,5 +9,6 @@ class ApiConfig {
     defaultValue: 'http://localhost:3000',
   );
 
-  static const Duration timeout = Duration(seconds: 15);
+  /// Render free tier ngủ sau ~15 phút; cold start có thể mất gần một phút.
+  static const Duration timeout = Duration(seconds: 60);
 }

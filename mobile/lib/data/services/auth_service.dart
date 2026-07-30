@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -183,11 +184,17 @@ class AuthService {
       return AuthResult(user: user, token: authToken);
     } on AuthException {
       rethrow;
-    } catch (_) {
-      throw AuthException(
-        'Không kết nối được máy chủ. Kiểm tra backend đang chạy tại ${ApiConfig.baseUrl}',
-      );
+    } catch (e) {
+      throw AuthException(_networkErrorMessage(e));
     }
+  }
+
+  String _networkErrorMessage(Object error) {
+    if (error is TimeoutException) {
+      return 'Máy chủ phản hồi quá lâu. Thử lại sau giây lát.';
+    }
+    return 'Không kết nối được máy chủ (${ApiConfig.baseUrl}). '
+        'Chi tiết: $error';
   }
 
   Future<Map<String, dynamic>> _postJson(
@@ -212,10 +219,8 @@ class AuthService {
       return body;
     } on AuthException {
       rethrow;
-    } catch (_) {
-      throw AuthException(
-        'Không kết nối được máy chủ. Kiểm tra backend đang chạy tại ${ApiConfig.baseUrl}',
-      );
+    } catch (e) {
+      throw AuthException(_networkErrorMessage(e));
     }
   }
 
