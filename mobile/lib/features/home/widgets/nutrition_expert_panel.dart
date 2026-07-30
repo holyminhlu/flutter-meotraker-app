@@ -5,18 +5,7 @@ import 'package:meo_traker/core/time/app_clock.dart';
 import 'package:meo_traker/data/services/meal_log_service.dart';
 import 'package:meo_traker/data/services/meal_schedule_service.dart';
 
-String _missedExpertNudge(MealPeriod period) {
-  switch (period) {
-    case MealPeriod.breakfast:
-      return 'Bữa sáng đã bỏ lỡ — đây là nền tảng năng lượng cả ngày. Bữa sau đừng để trượt nữa.';
-    case MealPeriod.lunch:
-      return 'Bữa trưa bỏ lỡ rồi. Cơ thể đang chờ bạn chứng minh sự quyết tâm ở bữa tối.';
-    case MealPeriod.dinner:
-      return 'Bữa tối đã bỏ lỡ. Một ngày chưa hoàn thành — mai bạn sẽ làm tốt hơn.';
-  }
-}
-
-/// Lịch sử món AI + lời khuyên; bữa bỏ lỡ nổi bật để thúc đẩy quyết tâm.
+/// Lịch sử món AI + lời khuyên; bữa bỏ lỡ chỉ hiện dấu ✗ / Đã bỏ lỡ.
 class NutritionExpertPanel extends StatelessWidget {
   const NutritionExpertPanel({super.key});
 
@@ -225,99 +214,91 @@ class _ExpertMealCard extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 10),
-          if (missed)
-            Text(
-              _missedExpertNudge(config.period),
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                fontWeight: FontWeight.w700,
-                color: AppColors.error,
-              ),
-            )
-          else if (!hasLog)
-            Text(
-              inWindow ? 'Đang mở — sẵn sàng ghi nhận.' : 'Chưa tới giờ.',
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.35,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            )
-          else ...[
-            if (log!.foodItems.isNotEmpty)
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: log!.foodItems
-                    .map(
-                      (f) => Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
+          if (!missed) ...[
+            const SizedBox(height: 10),
+            if (!hasLog)
+              Text(
+                inWindow ? 'Đang mở — sẵn sàng ghi nhận.' : 'Chưa tới giờ.',
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.35,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              )
+            else ...[
+              if (log!.foodItems.isNotEmpty)
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: log!.foodItems
+                      .map(
+                        (f) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            f,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.22),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
+                      )
+                      .toList(),
+                ),
+              if (log!.description != null &&
+                  log!.description!.trim().isNotEmpty) ...[
+                if (log!.foodItems.isNotEmpty) const SizedBox(height: 8),
+                Text(
+                  log!.description!,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+              if (log!.advice.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.lightbulb_rounded,
+                        size: 18,
+                        color: AppColors.onPrimary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
                         child: Text(
-                          f,
+                          log!.advice,
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            height: 1.4,
+                            fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary,
                           ),
                         ),
                       ),
-                    )
-                    .toList(),
-              ),
-            if (log!.description != null &&
-                log!.description!.trim().isNotEmpty) ...[
-              if (log!.foodItems.isNotEmpty) const SizedBox(height: 8),
-              Text(
-                log!.description!,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                    ],
+                  ),
                 ),
-              ),
-            ],
-            if (log!.advice.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.lightbulb_rounded,
-                      size: 18,
-                      color: AppColors.onPrimary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        log!.advice,
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.4,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              ],
             ],
           ],
         ],

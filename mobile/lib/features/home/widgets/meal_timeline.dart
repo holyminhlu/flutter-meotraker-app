@@ -28,18 +28,7 @@ class MealSlot {
   final bool past;
 }
 
-String _missedNudge(MealPeriod period) {
-  switch (period) {
-    case MealPeriod.breakfast:
-      return 'Bạn đã bỏ lỡ bữa sáng — đừng để bữa tiếp theo trôi qua nữa.';
-    case MealPeriod.lunch:
-      return 'Bữa trưa đã lỡ. Cơ thể cần bạn quyết tâm hơn ở bữa tối.';
-    case MealPeriod.dinner:
-      return 'Bữa tối bỏ lỡ rồi. Mai bắt đầu lại — bạn làm được.';
-  }
-}
-
-/// Bữa ăn hôm nay — danh sách dọc; bữa bỏ lỡ nổi bật đỏ.
+/// Bữa ăn hôm nay — danh sách dọc; bữa bỏ lỡ chỉ hiện dấu ✗ / Đã bỏ lỡ.
 class MealTimeline extends StatelessWidget {
   const MealTimeline({
     super.key,
@@ -225,18 +214,7 @@ class _MealRow extends StatelessWidget {
               ),
             ],
           ),
-          if (missed) ...[
-            const SizedBox(height: 10),
-            Text(
-              _missedNudge(meal.period),
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.35,
-                fontWeight: FontWeight.w700,
-                color: AppColors.error,
-              ),
-            ),
-          ] else if (meal.foodItems.isNotEmpty) ...[
+          if (!missed && meal.foodItems.isNotEmpty) ...[
             const SizedBox(height: 8),
             Wrap(
               spacing: 6,

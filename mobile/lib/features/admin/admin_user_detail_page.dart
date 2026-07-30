@@ -1054,6 +1054,98 @@ class _DayTab extends StatelessWidget {
   final void Function(Map<String, dynamic> meal) onOpenMeal;
   final int Function(dynamic) countTrue;
 
+  Map<String, dynamic>? _mealEntry(String period) {
+    for (final m in meals) {
+      if (m['period']?.toString() == period) return m;
+    }
+    return null;
+  }
+
+  /// Bữa đạt khi tiến độ đã tick. Nếu chưa mà user vẫn có ảnh / ghi nhận thì
+  /// báo "chưa đủ" thay vì ✗, để admin không tưởng user bỏ bữa.
+  (_FlagState, String?) _mealFlag(String period) {
+    if (progress?[_progressKey(period)] == true) return (_FlagState.done, null);
+    final entry = _mealEntry(period);
+    if (entry == null) return (_FlagState.none, null);
+    return (
+      _FlagState.partial,
+      entry['hasImage'] == true ? 'Có ảnh' : 'Chưa đạt',
+    );
+  }
+
+  static String _progressKey(String period) {
+    switch (period) {
+      case 'breakfast':
+        return 'mealBreakfast';
+      case 'lunch':
+        return 'mealLunch';
+      default:
+        return 'mealDinner';
+    }
+  }
+
+  _FlagState _countFlag(int value, int target) {
+    if (value >= target) return _FlagState.done;
+    return value > 0 ? _FlagState.partial : _FlagState.none;
+  }
+
+  Widget _buildProgressPanel() {
+    final water = countTrue(progress?['waterSlots']);
+    final exercise = countTrue(progress?['exerciseSlots']);
+    final sessions = countTrue(progress?['exerciseSessionAwards']);
+    final breakfast = _mealFlag('breakfast');
+    final lunch = _mealFlag('lunch');
+    final dinner = _mealFlag('dinner');
+
+    return _Panel(
+      title: 'Tiến độ ngày',
+      trailing: TextButton(
+        onPressed: onOpenFull,
+        child: const Text('Chi tiết ảnh'),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _DayFlag(
+                label: 'Sáng',
+                state: breakfast.$1,
+                value: breakfast.$2,
+              ),
+              _DayFlag(label: 'Trưa', state: lunch.$1, value: lunch.$2),
+              _DayFlag(label: 'Tối', state: dinner.$1, value: dinner.$2),
+              _DayFlag(
+                label: 'Nước',
+                state: _countFlag(water, 6),
+                value: '$water/6',
+              ),
+              _DayFlag(
+                label: 'VĐ',
+                state: _countFlag(exercise, 2),
+                value: '$exercise/3',
+              ),
+              _DayFlag(
+                label: 'Phiên',
+                state: _countFlag(sessions, 1),
+                value: '$sessions/3',
+              ),
+              _DayFlag(
+                label: '+Điểm VĐ',
+                state: _countFlag(sessions, 1),
+                value: '+$sessions',
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Xanh: đạt · Cam: có ghi nhận nhưng chưa đủ · Đỏ: chưa có',
+            style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -1108,52 +1200,7 @@ class _DayTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        if (progress != null)
-          _Panel(
-            title: 'Tiến độ ngày',
-            trailing: TextButton(
-              onPressed: onOpenFull,
-              child: const Text('Chi tiết ảnh'),
-            ),
-            child: Row(
-              children: [
-                _DayFlag(
-                  label: 'Sáng',
-                  done: progress!['mealBreakfast'] == true,
-                ),
-                _DayFlag(
-                  label: 'Trưa',
-                  done: progress!['mealLunch'] == true,
-                ),
-                _DayFlag(
-                  label: 'Tối',
-                  done: progress!['mealDinner'] == true,
-                ),
-                _DayFlag(
-                  label: 'Nước',
-                  done: countTrue(progress!['waterSlots']) >= 6,
-                  value: '${countTrue(progress!['waterSlots'])}/6',
-                ),
-                _DayFlag(
-                  label: 'VĐ',
-                  done: countTrue(progress!['exerciseSlots']) >= 2,
-                  value: '${countTrue(progress!['exerciseSlots'])}/3',
-                ),
-                _DayFlag(
-                  label: 'Phiên',
-                  done: countTrue(progress!['exerciseSessionAwards']) > 0,
-                  value:
-                      '${countTrue(progress!['exerciseSessionAwards'])}/3',
-                ),
-                _DayFlag(
-                  label: '+Điểm VĐ',
-                  done: countTrue(progress!['exerciseSessionAwards']) > 0,
-                  value:
-                      '+${countTrue(progress!['exerciseSessionAwards'])}',
-                ),
-              ],
-            ),
-          ),
+        if (progress != null || meals.isNotEmpty) _buildProgressPanel(),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -1460,27 +1507,32 @@ class _FoodGroup extends StatelessWidget {
   }
 }
 
+/// Đạt chỉ tiêu / có ghi nhận nhưng chưa đủ / chưa có gì.
+enum _FlagState { done, partial, none }
+
 class _DayFlag extends StatelessWidget {
   const _DayFlag({
     required this.label,
-    required this.done,
+    required this.state,
     this.value,
   });
 
   final String label;
-  final bool done;
+  final _FlagState state;
   final String? value;
 
   @override
   Widget build(BuildContext context) {
+    final (icon, color) = switch (state) {
+      _FlagState.done => (Icons.check_circle_rounded, AppColors.success),
+      _FlagState.partial => (Icons.error_rounded, AppColors.warning),
+      _FlagState.none => (Icons.cancel_rounded, AppColors.error),
+    };
+
     return Expanded(
       child: Column(
         children: [
-          Icon(
-            done ? Icons.check_circle_rounded : Icons.cancel_rounded,
-            color: done ? AppColors.success : AppColors.error,
-            size: 22,
-          ),
+          Icon(icon, color: color, size: 22),
           const SizedBox(height: 4),
           Text(
             value ?? label,

@@ -184,17 +184,17 @@ class _AdminDayDetailPageState extends State<AdminDayDetailPage> {
               ),
             ),
           ),
-          if (_progress != null)
+          if (_progress != null || _meals.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Text(
-                'Tiến độ: Sáng ${_bool(_progress!['mealBreakfast'])} · '
-                'Trưa ${_bool(_progress!['mealLunch'])} · '
-                'Tối ${_bool(_progress!['mealDinner'])} · '
-                'Nước ${_countTrue(_progress!['waterSlots'])}/6 · '
-                'VĐ ${_countTrue(_progress!['exerciseSlots'])}/3 · '
-                'Phiên tập ${_countTrue(_progress!['exerciseSessionAwards'])}/3 '
-                '(+${_countTrue(_progress!['exerciseSessionAwards'])} điểm VĐ)',
+                'Tiến độ: Sáng ${_mealMark('breakfast')} · '
+                'Trưa ${_mealMark('lunch')} · '
+                'Tối ${_mealMark('dinner')} · '
+                'Nước ${_countTrue(_progress?['waterSlots'])}/6 · '
+                'VĐ ${_countTrue(_progress?['exerciseSlots'])}/3 · '
+                'Phiên tập ${_countTrue(_progress?['exerciseSessionAwards'])}/3 '
+                '(+${_countTrue(_progress?['exerciseSessionAwards'])} điểm VĐ)',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,
@@ -274,7 +274,17 @@ class _AdminDayDetailPageState extends State<AdminDayDetailPage> {
     );
   }
 
-  String _bool(dynamic v) => v == true ? '✓' : '✗';
+  /// ✓ đạt · ! có ảnh nhưng chưa được tính · ✗ chưa có gì.
+  String _mealMark(String period) {
+    const keys = {
+      'breakfast': 'mealBreakfast',
+      'lunch': 'mealLunch',
+      'dinner': 'mealDinner',
+    };
+    if (_progress?[keys[period]] == true) return '✓';
+    final hasEntry = _meals.any((m) => m['period']?.toString() == period);
+    return hasEntry ? '!' : '✗';
+  }
 
   int _countTrue(dynamic list) {
     if (list is! List) return 0;

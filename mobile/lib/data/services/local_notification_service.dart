@@ -21,6 +21,56 @@ class LocalNotificationService {
   static const _channelName = 'Nhắc nhở Meo Traker';
   static const _channelDesc = 'Nhắc động lực và khung giờ ăn uống';
 
+  static const _waterReminders = <({
+    int hour,
+    int minute,
+    String title,
+    String body,
+  })>[
+    (
+      hour: 7,
+      minute: 30,
+      title: 'Nhắc uống nước ấm',
+      body: 'Uống 200–300 ml nước ấm để bắt đầu ngày mới.',
+    ),
+    (
+      hour: 8,
+      minute: 0,
+      title: 'Nhắc uống nước ấm',
+      body: 'Đến giờ uống 200–300 ml nước ấm buổi sáng.',
+    ),
+    (
+      hour: 9,
+      minute: 0,
+      title: 'Nhắc uống nước',
+      body: 'Uống 200–300 ml nước để giữ tỉnh táo.',
+    ),
+    (
+      hour: 12,
+      minute: 0,
+      title: 'Nhắc uống nước',
+      body: 'Uống khoảng 200 ml nước trước bữa trưa 30 phút.',
+    ),
+    (
+      hour: 14,
+      minute: 0,
+      title: 'Nhắc uống nước',
+      body: 'Uống 200–300 ml nước để bù nước buổi chiều.',
+    ),
+    (
+      hour: 18,
+      minute: 0,
+      title: 'Nhắc uống nước trước khi tắm',
+      body: 'Uống 100–200 ml nước trước khi tắm.',
+    ),
+    (
+      hour: 21,
+      minute: 30,
+      title: 'Nhắc uống nước trước khi ngủ',
+      body: 'Uống 100–200 ml nước trước khi ngủ một tiếng.',
+    ),
+  ];
+
   Future<void> init() async {
     if (_ready) return;
     // Web không hỗ trợ local notifications của plugin này.
@@ -153,8 +203,9 @@ class LocalNotificationService {
     final wantEncouragement = settings.encouragementReminders;
     final wantMealSlots =
         settings.mealReminders && mealSvc.mealRemindersEnabled;
+    final wantWaterReminders = mealSvc.warmWater;
 
-    if (!wantEncouragement && !wantMealSlots) return;
+    if (!wantEncouragement && !wantMealSlots && !wantWaterReminders) return;
 
     final now = tz.TZDateTime.now(tz.local);
     var notifId = 2000;
@@ -183,6 +234,20 @@ class LocalNotificationService {
           minute: slot.notifyAt.minute,
           title: 'Nhắc ${slot.mealLabel}',
           body: slot.message,
+          now: now,
+        );
+      }
+    }
+
+    // Nhắc uống nước theo các mốc trong thử thách.
+    if (wantWaterReminders) {
+      for (final reminder in _waterReminders) {
+        await _scheduleDaily(
+          id: notifId++,
+          hour: reminder.hour,
+          minute: reminder.minute,
+          title: reminder.title,
+          body: reminder.body,
           now: now,
         );
       }

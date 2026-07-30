@@ -10,52 +10,23 @@ class _SlotDef {
   const _SlotDef({
     required this.title,
     required this.duration,
-    required this.endHour,
-    required this.endMinute,
     this.optional = false,
   });
 
   final String title;
   final String duration;
-  final int endHour;
-  final int endMinute;
   final bool optional;
-
-  bool isPast(DateTime now) {
-    if (ExerciseFabSchedule.forceEnabledForTest) return false;
-    final end = DateTime(now.year, now.month, now.day, endHour, endMinute);
-    return now.isAfter(end);
-  }
 }
 
 const _slots = [
-  _SlotDef(
-    title: 'Buổi sáng',
-    duration: '10 phút',
-    endHour: 9,
-    endMinute: 0,
-  ),
-  _SlotDef(
-    title: 'Buổi xế chiều',
-    duration: '10 phút',
-    endHour: 17,
-    endMinute: 30,
-  ),
-  _SlotDef(
-    title: 'Buổi tối',
-    duration: '10 phút',
-    endHour: 22,
-    endMinute: 0,
-    optional: true,
-  ),
+  _SlotDef(title: 'Buổi sáng', duration: '10 phút'),
+  _SlotDef(title: 'Buổi xế chiều', duration: '10 phút'),
+  _SlotDef(title: 'Buổi tối', duration: '10 phút', optional: true),
 ];
 
 /// Sheet nhanh khi chạm nút vận động — chọn buổi và bắt đầu tập.
 class ExerciseQuickSheet extends StatelessWidget {
-  const ExerciseQuickSheet({
-    super.key,
-    this.onOpenChallenges,
-  });
+  const ExerciseQuickSheet({super.key, this.onOpenChallenges});
 
   final VoidCallback? onOpenChallenges;
 
@@ -76,9 +47,17 @@ class ExerciseQuickSheet extends StatelessWidget {
     final now = AppClock.instance.now();
     final progress = ProgressService.instance;
 
-    if (def.isPast(now) && !progress.exerciseSlots[index]) {
+    if (!ExerciseFabSchedule.isSlotActive(index, now)) {
+      final past = ExerciseFabSchedule.isSlotPast(index, now);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đã bỏ lỡ "${def.title}" — không thể tập sau giờ.')),
+        SnackBar(
+          content: Text(
+            past
+                ? 'Đã bỏ lỡ "${def.title}" — không thể tập sau giờ.'
+                : '"${def.title}" chỉ mở lúc '
+                      '${ExerciseFabSchedule.slotWindowLabel(index)}.',
+          ),
+        ),
       );
       return;
     }
@@ -93,10 +72,8 @@ class ExerciseQuickSheet extends StatelessWidget {
     Navigator.of(context).pop();
     await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
-        builder: (_) => ExerciseSessionPage(
-          slotIndex: index,
-          slotTitle: def.title,
-        ),
+        builder: (_) =>
+            ExerciseSessionPage(slotIndex: index, slotTitle: def.title),
       ),
     );
   }
@@ -107,10 +84,10 @@ class ExerciseQuickSheet extends StatelessWidget {
       listenable: ProgressService.instance,
       builder: (context, _) {
         final progress = ProgressService.instance;
-        final inWindow = ExerciseFabSchedule.isActive();
+        final now = AppClock.instance.now();
+        final inWindow = ExerciseFabSchedule.isActive(now);
         final done = progress.exerciseRequiredDone;
         final total = ProgressService.exerciseRequired;
-        final now = AppClock.instance.now();
 
         return Padding(
           padding: EdgeInsets.only(
@@ -181,14 +158,17 @@ class ExerciseQuickSheet extends StatelessWidget {
                     _SlotActionRow(
                       title: _slots[i].title,
                       subtitle:
-                          '${_slots[i].duration}${_slots[i].optional ? ' · tùy chọn' : ''}',
-                      done: i < progress.exerciseSlots.length &&
+                          '${ExerciseFabSchedule.slotWindowLabel(i)} · '
+                          '${_slots[i].duration}'
+                          '${_slots[i].optional ? ' · tùy chọn' : ''}',
+                      done:
+                          i < progress.exerciseSlots.length &&
                           progress.exerciseSlots[i],
-                      missed: _slots[i].isPast(now) &&
+                      missed:
+                          ExerciseFabSchedule.isSlotPast(i, now) &&
                           !(i < progress.exerciseSlots.length &&
                               progress.exerciseSlots[i]),
-                      enabled: inWindow ||
-                          ExerciseFabSchedule.forceEnabledForTest,
+                      enabled: ExerciseFabSchedule.isSlotActive(i, now),
                       onStart: () => _startSlot(context, i),
                     ),
                   const SizedBox(height: 8),
@@ -235,59 +215,67 @@ class _SlotActionRow extends StatelessWidget {
     final statusColor = done
         ? AppColors.success
         : missed
-            ? AppColors.error
-            : AppColors.textSecondary;
+        ? AppColors.error
+        : AppColors.textSecondary;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: done
-            ? AppColors.primary.withValues(alpha: 0.18)
-            : AppColors.background,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: (done || missed || !enabled) ? null : onStart,
+    return Opacity(
+      opacity: done || missed || enabled ? 1 : 0.38,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Material(
+          color: done
+              ? AppColors.primary.withValues(alpha: 0.18)
+              : AppColors.background,
           borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Icon(
-                  done
-                      ? Icons.check_circle_rounded
-                      : missed
-                          ? Icons.cancel_rounded
-                          : Icons.play_circle_outline_rounded,
-                  size: 26,
-                  color: statusColor,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        done
-                            ? 'Đã ghi nhận'
-                            : missed
-                                ? 'Đã bỏ lỡ'
-                                : 'Chạm để bắt đầu · $subtitle',
-                        style: TextStyle(fontSize: 12, color: statusColor),
-                      ),
-                    ],
+          child: InkWell(
+            onTap: (done || missed || !enabled) ? null : onStart,
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(
+                    done
+                        ? Icons.check_circle_rounded
+                        : missed
+                        ? Icons.cancel_rounded
+                        : Icons.play_circle_outline_rounded,
+                    size: 26,
+                    color: statusColor,
                   ),
-                ),
-                if (!done && !missed && enabled)
-                  Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          done
+                              ? 'Đã ghi nhận'
+                              : missed
+                              ? 'Đã bỏ lỡ'
+                              : enabled
+                              ? 'Chạm để bắt đầu · $subtitle'
+                              : 'Chưa tới giờ · $subtitle',
+                          style: TextStyle(fontSize: 12, color: statusColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!done && !missed && enabled)
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.textSecondary,
+                    ),
+                ],
+              ),
             ),
           ),
         ),

@@ -38,6 +38,7 @@ class MealAnalysisApi {
       throw Exception('Cần đăng nhập để phân tích ảnh');
     }
 
+    final now = AppClock.instance.now();
     final res = await http
         .post(
           Uri.parse('${ApiConfig.baseUrl}/api/meals/analyze'),
@@ -49,11 +50,12 @@ class MealAnalysisApi {
             'imageBase64': base64Encode(bytes),
             'mimeType': mimeType,
             'mealPeriod': mealPeriod.name,
-            'clientNowIso':
-                AppClock.instance.now().toUtc().toIso8601String(),
+            'clientNowIso': now.toUtc().toIso8601String(),
             'windowStartIso': windowStart.toUtc().toIso8601String(),
             'windowEndIso': windowEnd.toUtc().toIso8601String(),
             'timingStatus': timingStatus,
+            // Giờ EXIF không có múi giờ; server cần độ lệch này để quy đổi.
+            'tzOffsetMinutes': now.timeZoneOffset.inMinutes,
           }),
         )
         .timeout(const Duration(seconds: 90));

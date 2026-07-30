@@ -6,22 +6,47 @@ class ExerciseFabSchedule {
 
   /// Bật = luôn active (không phụ thuộc khung giờ) — dùng khi test.
   /// Tắt lại (`false`) trước khi release.
-  static const bool forceEnabledForTest = true;
+  static const bool forceEnabledForTest = false;
 
-  /// 06:00–09:00 và 18:00–20:00 (giờ thiết bị).
+  static const _windows = <({int start, int end, String label})>[
+    (start: 6 * 60, end: 8 * 60, label: '06:00–08:00'),
+    (start: 16 * 60, end: 17 * 60 + 30, label: '16:00–17:30'),
+    (start: 21 * 60, end: 22 * 60, label: '21:00–22:00'),
+  ];
+
+  static int _minutes(DateTime at) => at.hour * 60 + at.minute;
+
+  /// Chỉ mở đúng buổi tương ứng; mốc kết thúc không còn được tính.
+  static bool isSlotActive(int slotIndex, [DateTime? at]) {
+    if (forceEnabledForTest) return true;
+    if (slotIndex < 0 || slotIndex >= _windows.length) return false;
+    final minutes = _minutes(at ?? AppClock.instance.now());
+    final window = _windows[slotIndex];
+    return minutes >= window.start && minutes < window.end;
+  }
+
+  static bool isSlotPast(int slotIndex, [DateTime? at]) {
+    if (forceEnabledForTest) return false;
+    if (slotIndex < 0 || slotIndex >= _windows.length) return true;
+    return _minutes(at ?? AppClock.instance.now()) >= _windows[slotIndex].end;
+  }
+
+  static String slotWindowLabel(int slotIndex) =>
+      slotIndex >= 0 && slotIndex < _windows.length
+      ? _windows[slotIndex].label
+      : '';
+
+  /// Nút vận động chỉ hiện trong một trong ba khung.
   static bool isActive([DateTime? at]) {
     if (forceEnabledForTest) return true;
     final t = at ?? AppClock.instance.now();
-    final minutes = t.hour * 60 + t.minute;
-    const morningStart = 6 * 60;
-    const morningEnd = 9 * 60;
-    const eveningStart = 18 * 60;
-    const eveningEnd = 20 * 60;
-    return (minutes >= morningStart && minutes < morningEnd) ||
-        (minutes >= eveningStart && minutes < eveningEnd);
+    return List.generate(
+      _windows.length,
+      (i) => i,
+    ).any((i) => isSlotActive(i, t));
   }
 
   static String windowLabel() => forceEnabledForTest
       ? 'TEST · luôn bật'
-      : '06:00–09:00 · 18:00–20:00';
+      : _windows.map((w) => w.label).join(' · ');
 }

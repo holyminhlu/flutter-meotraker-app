@@ -22,6 +22,44 @@ function stripDataUrl(base64OrDataUrl) {
   return idx >= 0 ? raw.slice(idx + 7) : raw;
 }
 
+const MINUTE_MS = 60 * 1000;
+
+/**
+ * EXIF lưu giờ treo tường, không kèm múi giờ, và exifr dựng Date theo TZ của
+ * tiến trình. Đọc lại bằng getter local rồi hiểu như UTC để có đúng giờ đã ghi
+ * trong ảnh, bất kể server chạy ở múi giờ nào.
+ */
+function wallClockMs(raw) {
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+    return Date.UTC(
+      raw.getFullYear(),
+      raw.getMonth(),
+      raw.getDate(),
+      raw.getHours(),
+      raw.getMinutes(),
+      raw.getSeconds(),
+    );
+  }
+  const m = /^(\d{4})[:-](\d{2})[:-](\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(
+    String(raw || ''),
+  );
+  if (!m) return null;
+  return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+}
+
+/** "+07:00" / "-0330" → số phút lệch so với UTC. */
+function parseOffsetMinutes(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && Math.abs(value) <= 14 * 60 ? value : null;
+  }
+  const m = /^([+-])(\d{1,2}):?(\d{2})$/.exec(String(value).trim());
+  if (!m) return null;
+  const mins = Number(m[2]) * 60 + Number(m[3]);
+  if (mins > 14 * 60) return null;
+  return m[1] === '-' ? -mins : mins;
+}
+
 function parseJsonLoose(text) {
   const s = String(text || '').trim();
   try {
@@ -67,12 +105,12 @@ async function extractMetadata(buffer, mimeType) {
     exif.DateTimeDigitized ||
     null;
 
+  const takenAtWallMs = wallClockMs(takenAt);
   const takenAtIso =
-    takenAt instanceof Date && !Number.isNaN(takenAt.getTime())
-      ? takenAt.toISOString()
-      : typeof takenAt === 'string'
-        ? takenAt
-        : null;
+    takenAtWallMs != null ? new Date(takenAtWallMs).toISOString() : null;
+  const takenAtOffsetMinutes = parseOffsetMinutes(
+    exif.OffsetTimeOriginal || exif.OffsetTime || exif.OffsetTimeDigitized,
+  );
 
   const make = exif.Make || exif.make || null;
   const model = exif.Model || exif.model || null;
@@ -89,6 +127,8 @@ async function extractMetadata(buffer, mimeType) {
     mimeType: mimeType || null,
     byteSize: buffer.length,
     takenAt: takenAtIso,
+    takenAtWallMs,
+    takenAtOffsetMinutes,
     deviceMake: make,
     deviceModel: model,
     software,
@@ -111,7 +151,7 @@ async function extractMetadata(buffer, mimeType) {
 /**
  * Chấm điểm metadata chống ảnh giả / ảnh cũ / ảnh tải mạng.
  */
-function scoreMetadata(meta, { mealPeriod, clientNowIso }) {
+function scoreMetadata(meta, { mealPeriod, clientNowIso, takenAtMs = null }) {
   const reasons = [];
   let score = 50;
   const now = clientNowIso ? new Date(clientNowIso) : new Date();
@@ -137,27 +177,27 @@ function scoreMetadata(meta, { mealPeriod, clientNowIso }) {
     reasons.push(`Phần mềm chỉnh sửa đáng ngờ: ${meta.software}`);
   }
 
-  if (meta.takenAt) {
-    const taken = new Date(meta.takenAt);
-    if (!Number.isNaN(taken.getTime())) {
-      const diffH = (nowMs - taken.getTime()) / 3600000;
-      if (diffH < -1) {
-        score -= 30;
-        reasons.push('Thời gian chụp ở tương lai');
-      } else if (diffH <= 6) {
-        score += 20;
-        reasons.push('Ảnh chụp trong vòng 6 giờ');
-      } else if (diffH <= 24) {
-        score += 8;
-        reasons.push('Ảnh trong ngày (≤24 giờ)');
-      } else if (diffH <= 72) {
-        score -= 10;
-        reasons.push('Ảnh hơi cũ (1–3 ngày)');
-      } else {
-        score -= 35;
-        reasons.push('Ảnh quá cũ — nghi dùng lại ảnh cũ');
-      }
+  if (takenAtMs != null) {
+    const diffH = (nowMs - takenAtMs) / 3600000;
+    if (diffH < -1) {
+      score -= 30;
+      reasons.push('Thời gian chụp ở tương lai');
+    } else if (diffH <= 6) {
+      score += 20;
+      reasons.push('Ảnh chụp trong vòng 6 giờ');
+    } else if (diffH <= 24) {
+      score += 8;
+      reasons.push('Ảnh trong ngày (≤24 giờ)');
+    } else if (diffH <= 72) {
+      score -= 10;
+      reasons.push('Ảnh hơi cũ (1–3 ngày)');
+    } else {
+      score -= 35;
+      reasons.push('Ảnh quá cũ — nghi dùng lại ảnh cũ');
     }
+  } else if (meta.takenAt) {
+    // Có giờ chụp nhưng không biết múi giờ → đối chiếu sẽ lệch, bỏ qua.
+    reasons.push('Có giờ chụp nhưng thiếu múi giờ để đối chiếu');
   } else {
     score -= 15;
     reasons.push('Không đọc được ngày/giờ chụp');
@@ -275,7 +315,7 @@ function resolveTimingStatus({
   windowStartIso,
   windowEndIso,
   timingStatus,
-  takenAtIso,
+  takenAtMs,
 }) {
   const reasons = [];
   let status = timingStatus;
@@ -299,16 +339,13 @@ function resolveTimingStatus({
         status = 'on_time';
       }
 
-      if (takenAtIso) {
-        const taken = new Date(takenAtIso);
-        if (!Number.isNaN(taken.getTime())) {
-          if (taken.getTime() < start.getTime() - skewMs) {
-            status = status === 'on_time' ? 'too_early' : status;
-            reasons.push('Thời gian chụp sớm hơn khung giờ bữa');
-          } else if (taken.getTime() > end.getTime() + skewMs) {
-            status = status === 'on_time' ? 'too_late' : status;
-            reasons.push('Thời gian chụp trễ hơn khung giờ bữa');
-          }
+      if (takenAtMs != null) {
+        if (takenAtMs < start.getTime() - skewMs) {
+          status = status === 'on_time' ? 'too_early' : status;
+          reasons.push('Thời gian chụp sớm hơn khung giờ bữa');
+        } else if (takenAtMs > end.getTime() + skewMs) {
+          status = status === 'on_time' ? 'too_late' : status;
+          reasons.push('Thời gian chụp trễ hơn khung giờ bữa');
         }
       }
     }
@@ -431,17 +468,29 @@ async function analyzeMealImage(input) {
 
   const mimeType = input.mimeType || 'image/jpeg';
   const metadata = await extractMetadata(buffer, mimeType);
+
+  // Giờ EXIF là giờ treo tường của người dùng. Muốn so với khung giờ (gửi lên
+  // dạng UTC) thì phải trừ đi độ lệch múi giờ; không biết độ lệch thì bỏ qua,
+  // vì đoán bừa sẽ báo sai "chụp trễ" cho user ngoài UTC.
+  const offsetMinutes =
+    metadata.takenAtOffsetMinutes ?? parseOffsetMinutes(input.tzOffsetMinutes);
+  const takenAtMs =
+    metadata.takenAtWallMs != null && offsetMinutes != null
+      ? metadata.takenAtWallMs - offsetMinutes * MINUTE_MS
+      : null;
+
   const timing = resolveTimingStatus({
     clientNowIso: input.clientNowIso,
     windowStartIso: input.windowStartIso,
     windowEndIso: input.windowEndIso,
     timingStatus: input.timingStatus,
-    takenAtIso: metadata.takenAt || null,
+    takenAtMs,
   });
 
   const metaScore = scoreMetadata(metadata, {
     mealPeriod: input.mealPeriod,
     clientNowIso: input.clientNowIso,
+    takenAtMs,
   });
 
   let ai;

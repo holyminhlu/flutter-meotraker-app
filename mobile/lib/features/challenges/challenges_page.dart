@@ -5,6 +5,7 @@ import 'package:meo_traker/core/constants/app_icons.dart';
 import 'package:meo_traker/core/meal/meal_schedule.dart';
 import 'package:meo_traker/core/theme/app_colors.dart';
 import 'package:meo_traker/core/time/app_clock.dart';
+import 'package:meo_traker/core/time/exercise_fab_schedule.dart';
 import 'package:meo_traker/core/widgets/page_menu_banner.dart';
 import 'package:meo_traker/data/services/meal_schedule_service.dart';
 import 'package:meo_traker/data/services/onboarding_service.dart';
@@ -32,6 +33,7 @@ class _WaterSlotDef {
   final String title;
   final String amount;
   final String note;
+
   /// Hết hạn tick sau mốc này (đã qua → bỏ lỡ nếu chưa xong).
   final int endHour;
   final int endMinute;
@@ -156,7 +158,6 @@ class _ChallengesPageState extends State<ChallengesPage>
 
   bool _loading = true;
   bool _animating = false;
-  double _currentWeight = 57.2;
 
   late final AnimationController _progressCtrl;
   late Animation<double> _progressAnim;
@@ -198,7 +199,6 @@ class _ChallengesPageState extends State<ChallengesPage>
     if (!mounted || _animating) return;
     setState(() {
       _animatedPoints = _progress.points.toDouble();
-      _currentWeight = _progress.latestWeight ?? _currentWeight;
     });
   }
 
@@ -206,15 +206,12 @@ class _ChallengesPageState extends State<ChallengesPage>
     try {
       final status = await OnboardingService.instance.getStatus();
       final p = status.profile;
-      if (p != null) {
-        final w = (p['weightKg'] as num?)?.toDouble() ?? _currentWeight;
+      final w = (p?['weightKg'] as num?)?.toDouble();
+      if (w != null) {
         await _progress.seedWeightIfEmpty(w);
-        _currentWeight = _progress.latestWeight ?? w;
-      } else {
-        _currentWeight = _progress.latestWeight ?? _currentWeight;
       }
     } catch (_) {
-      _currentWeight = _progress.latestWeight ?? _currentWeight;
+      // Giữ tiến độ local nếu tải hồ sơ lỗi.
     } finally {
       if (mounted) {
         setState(() {
@@ -237,22 +234,11 @@ class _ChallengesPageState extends State<ChallengesPage>
   }
 
   int get _mealDoneCount =>
-      (_mealBreakfast ? 1 : 0) +
-      (_mealLunch ? 1 : 0) +
-      (_mealDinner ? 1 : 0);
+      (_mealBreakfast ? 1 : 0) + (_mealLunch ? 1 : 0) + (_mealDinner ? 1 : 0);
 
   int get _waterDoneCount => _progress.waterDoneCount;
 
   int get _exerciseRequiredDone => _progress.exerciseRequiredDone;
-
-  /// Cân nặng × 35ml = tổng nhu cầu nước (ml).
-  int get _totalWaterNeedMl => (_currentWeight * 35).round();
-
-  /// ~25% từ thức ăn (trong khoảng 20–30%).
-  int get _waterFromFoodMl => (_totalWaterNeedMl * 0.25).round();
-
-  /// Lượng nước lọc cần uống (sau khi trừ ~25% từ thức ăn).
-  int get _drinkTargetMl => _totalWaterNeedMl - _waterFromFoodMl;
 
   int get _todayEarned => _progress.todayEarned;
 
@@ -291,8 +277,7 @@ class _ChallengesPageState extends State<ChallengesPage>
     }
 
     final current = _progress.waterSlots[index];
-    final wasComplete =
-        _progress.awardedWater || _progress.waterComplete;
+    final wasComplete = _progress.awardedWater || _progress.waterComplete;
     final label = def.title;
 
     if (current) {
@@ -307,17 +292,18 @@ class _ChallengesPageState extends State<ChallengesPage>
     await _progress.toggleWaterSlot(index);
     if (!mounted) return;
 
-    final nowComplete =
-        _progress.awardedWater || _progress.waterComplete;
+    final nowComplete = _progress.awardedWater || _progress.waterComplete;
 
     if (!wasComplete && nowComplete) {
-      final from = globalCenterOf(_waterKey) ??
+      final from =
+          globalCenterOf(_waterKey) ??
           Offset(
             MediaQuery.sizeOf(context).width / 2,
             MediaQuery.sizeOf(context).height * 0.55,
           );
       final ahead = _displayPoints.toDouble() / choiceThreshold;
-      final to = progressTipOf(_progressKey, ahead) ??
+      final to =
+          progressTipOf(_progressKey, ahead) ??
           Offset(MediaQuery.sizeOf(context).width * 0.5, 160);
 
       await playSemicirclePointFlight(
@@ -353,14 +339,18 @@ class _ChallengesPageState extends State<ChallengesPage>
 
     final def = _exerciseSlotDefs[index];
     final now = AppClock.instance.now();
-    if (def.isPast(now)) {
+    if (!ExerciseFabSchedule.isSlotActive(index, now)) {
+      final past = ExerciseFabSchedule.isSlotPast(index, now);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             _progress.exerciseSlots[index]
                 ? 'Khung "${def.title}" đã khóa — không thể bỏ tick.'
-                : 'Đã bỏ lỡ "${def.title}" — không thể tick sau giờ.',
+                : past
+                ? 'Đã bỏ lỡ "${def.title}" — không thể tick sau giờ.'
+                : '"${def.title}" chỉ mở lúc '
+                      '${ExerciseFabSchedule.slotWindowLabel(index)}.',
           ),
         ),
       );
@@ -368,8 +358,7 @@ class _ChallengesPageState extends State<ChallengesPage>
     }
 
     final current = _progress.exerciseSlots[index];
-    final wasComplete =
-        _progress.awardedExercise || _progress.exerciseComplete;
+    final wasComplete = _progress.awardedExercise || _progress.exerciseComplete;
 
     if (current) {
       await _progress.toggleExerciseSlot(index);
@@ -383,17 +372,18 @@ class _ChallengesPageState extends State<ChallengesPage>
     await _progress.toggleExerciseSlot(index);
     if (!mounted) return;
 
-    final nowComplete =
-        _progress.awardedExercise || _progress.exerciseComplete;
+    final nowComplete = _progress.awardedExercise || _progress.exerciseComplete;
 
     if (!wasComplete && nowComplete) {
-      final from = globalCenterOf(_exerciseKey) ??
+      final from =
+          globalCenterOf(_exerciseKey) ??
           Offset(
             MediaQuery.sizeOf(context).width / 2,
             MediaQuery.sizeOf(context).height * 0.55,
           );
       final ahead = _displayPoints.toDouble() / choiceThreshold;
-      final to = progressTipOf(_progressKey, ahead) ??
+      final to =
+          progressTipOf(_progressKey, ahead) ??
           Offset(MediaQuery.sizeOf(context).width * 0.5, 160);
 
       await playSemicirclePointFlight(
@@ -409,9 +399,7 @@ class _ChallengesPageState extends State<ChallengesPage>
       final msg = def.optional
           ? '${def.title} (tùy chọn) · Đã ghi nhận'
           : '${def.title} · Tiến độ $_exerciseRequiredDone/$_exerciseRequiredSlots — đủ sáng + xế chiều mới +$exercisePoints điểm';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
 
     if (!mounted) return;
@@ -437,17 +425,15 @@ class _ChallengesPageState extends State<ChallengesPage>
       return;
     }
     setState(() => _animatedPoints = _progress.points.toDouble());
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('🎉 Đã đổi "$name"!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('🎉 Đã đổi "$name"!')));
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final points = _displayPoints;
@@ -481,93 +467,96 @@ class _ChallengesPageState extends State<ChallengesPage>
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 14, 20, 100),
                   children: [
-              RewardChestPanel(
-                points: _animatedPoints.round(),
-                vipThreshold: vipThreshold,
-                superVipThreshold: choiceThreshold,
-                progressKey: _progressKey,
-                animatedProgress: _animatedPoints,
-              ),
-              const SizedBox(height: 12),
-              StreakBar(streak: _progress.displayStreak),
-              const SizedBox(height: 18),
-              const Text(
-                'Thành tích hôm nay',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Đã kiếm $_todayEarned / ${mealPoints + waterPoints + exercisePoints} điểm hôm nay',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 10),
-              KeyedSubtree(
-                key: _mealKey,
-                child: _MealOnTimeGroup(
-                  breakfast: _mealBreakfast,
-                  lunch: _mealLunch,
-                  dinner: _mealDinner,
-                  breakfastMissed: _mealMissed(MealPeriod.breakfast),
-                  lunchMissed: _mealMissed(MealPeriod.lunch),
-                  dinnerMissed: _mealMissed(MealPeriod.dinner),
-                  doneCount: _mealDoneCount,
-                  rewardPoints: mealPoints,
-                  awarded: _progress.awardedMeal || _progress.mealComplete,
-                ),
-              ),
-              KeyedSubtree(
-                key: _waterKey,
-                child: _WaterIntakeGroup(
-                  slots: List<bool>.from(_progress.waterSlots),
-                  defs: _waterSlotDefs,
-                  doneCount: _waterDoneCount,
-                  pointsThreshold: _waterPointsThreshold,
-                  rewardPoints: waterPoints,
-                  awarded: _progress.awardedWater || _progress.waterComplete,
-                  weightKg: _currentWeight,
-                  totalNeedMl: _totalWaterNeedMl,
-                  fromFoodMl: _waterFromFoodMl,
-                  drinkTargetMl: _drinkTargetMl,
-                  onToggle: _toggleWaterSlot,
-                ),
-              ),
-              KeyedSubtree(
-                key: _exerciseKey,
-                child: _ExerciseGroup(
-                  slots: List<bool>.from(_progress.exerciseSlots),
-                  defs: _exerciseSlotDefs,
-                  requiredDone: _exerciseRequiredDone,
-                  requiredTotal: _exerciseRequiredSlots,
-                  rewardPoints: exercisePoints,
-                  awarded:
-                      _progress.awardedExercise || _progress.exerciseComplete,
-                  onToggle: _toggleExerciseSlot,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Mốc đổi quà',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 10),
-              _RewardMilestone(
-                icon: AppIcons.diemThuong,
-                title: 'Quà VIP',
-                need: vipThreshold,
-                current: points,
-                onClaim: () => _claimReward(vipThreshold, 'Quà VIP'),
-                isCoinIcon: true,
-              ),
-              _RewardMilestone(
-                icon: AppIcons.anMungDatMoc,
-                title: 'Quà tự chọn (Super VIP)',
-                need: choiceThreshold,
-                current: points,
-                onClaim: () => _claimReward(choiceThreshold, 'Quà tự chọn'),
-              ),
+                    RewardChestPanel(
+                      points: _animatedPoints.round(),
+                      vipThreshold: vipThreshold,
+                      superVipThreshold: choiceThreshold,
+                      progressKey: _progressKey,
+                      animatedProgress: _animatedPoints,
+                    ),
+                    const SizedBox(height: 12),
+                    StreakBar(streak: _progress.displayStreak),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Thành tích hôm nay',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Đã kiếm $_todayEarned / ${mealPoints + waterPoints + exercisePoints} điểm hôm nay',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    KeyedSubtree(
+                      key: _mealKey,
+                      child: _MealOnTimeGroup(
+                        breakfast: _mealBreakfast,
+                        lunch: _mealLunch,
+                        dinner: _mealDinner,
+                        breakfastMissed: _mealMissed(MealPeriod.breakfast),
+                        lunchMissed: _mealMissed(MealPeriod.lunch),
+                        dinnerMissed: _mealMissed(MealPeriod.dinner),
+                        doneCount: _mealDoneCount,
+                        awarded:
+                            _progress.awardedMeal || _progress.mealComplete,
+                      ),
+                    ),
+                    KeyedSubtree(
+                      key: _waterKey,
+                      child: _WaterIntakeGroup(
+                        slots: List<bool>.from(_progress.waterSlots),
+                        defs: _waterSlotDefs,
+                        doneCount: _waterDoneCount,
+                        pointsThreshold: _waterPointsThreshold,
+                        awarded:
+                            _progress.awardedWater || _progress.waterComplete,
+                        onToggle: _toggleWaterSlot,
+                      ),
+                    ),
+                    KeyedSubtree(
+                      key: _exerciseKey,
+                      child: _ExerciseGroup(
+                        slots: List<bool>.from(_progress.exerciseSlots),
+                        defs: _exerciseSlotDefs,
+                        requiredDone: _exerciseRequiredDone,
+                        requiredTotal: _exerciseRequiredSlots,
+                        awarded:
+                            _progress.awardedExercise ||
+                            _progress.exerciseComplete,
+                        onToggle: _toggleExerciseSlot,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Mốc đổi quà',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _RewardMilestone(
+                      icon: AppIcons.diemThuong,
+                      title: 'Quà VIP',
+                      need: vipThreshold,
+                      current: points,
+                      onClaim: () => _claimReward(vipThreshold, 'Quà VIP'),
+                      isCoinIcon: true,
+                    ),
+                    _RewardMilestone(
+                      icon: AppIcons.anMungDatMoc,
+                      title: 'Quà tự chọn (Super VIP)',
+                      need: choiceThreshold,
+                      current: points,
+                      onClaim: () =>
+                          _claimReward(choiceThreshold, 'Quà tự chọn'),
+                    ),
                   ],
                 ),
               ),
@@ -585,12 +574,7 @@ class _WaterIntakeGroup extends StatelessWidget {
     required this.defs,
     required this.doneCount,
     required this.pointsThreshold,
-    required this.rewardPoints,
     required this.awarded,
-    required this.weightKg,
-    required this.totalNeedMl,
-    required this.fromFoodMl,
-    required this.drinkTargetMl,
     required this.onToggle,
   });
 
@@ -598,12 +582,7 @@ class _WaterIntakeGroup extends StatelessWidget {
   final List<_WaterSlotDef> defs;
   final int doneCount;
   final int pointsThreshold;
-  final int rewardPoints;
   final bool awarded;
-  final double weightKg;
-  final int totalNeedMl;
-  final int fromFoodMl;
-  final int drinkTargetMl;
   final void Function(int index) onToggle;
 
   @override
@@ -626,24 +605,10 @@ class _WaterIntakeGroup extends StatelessWidget {
             children: [
               Image.asset(AppIcons.uongNuocAm, width: 40, height: 40),
               const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Uống đủ nước',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                    ),
-                    Text(
-                      awarded
-                          ? 'Đã nhận +$rewardPoints điểm'
-                          : 'Đủ $pointsThreshold/$total lần uống để +$rewardPoints điểm',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+              const Expanded(
+                child: Text(
+                  'Uống đủ nước',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                 ),
               ),
               Text(
@@ -655,26 +620,6 @@ class _WaterIntakeGroup extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Text(
-              'Cân nặng ${weightKg.toStringAsFixed(1)} kg × 35 ml = $totalNeedMl ml/ngày.\n'
-              '≈$fromFoodMl ml từ thức ăn (20–30%) → cần uống khoảng $drinkTargetMl ml nước lọc '
-              '(thường 1,5–2 lít).',
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.35,
-                color: AppColors.textSecondary,
-              ),
-            ),
           ),
           const SizedBox(height: 10),
           ClipRRect(
@@ -781,8 +726,7 @@ class _WaterSlotChip extends StatelessWidget {
                           color: missed
                               ? AppColors.error
                               : AppColors.textPrimary,
-                          decoration:
-                              done ? TextDecoration.lineThrough : null,
+                          decoration: done ? TextDecoration.lineThrough : null,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -822,7 +766,6 @@ class _ExerciseGroup extends StatelessWidget {
     required this.defs,
     required this.requiredDone,
     required this.requiredTotal,
-    required this.rewardPoints,
     required this.awarded,
     required this.onToggle,
   });
@@ -831,7 +774,6 @@ class _ExerciseGroup extends StatelessWidget {
   final List<_ExerciseSlotDef> defs;
   final int requiredDone;
   final int requiredTotal;
-  final int rewardPoints;
   final bool awarded;
   final void Function(int index) onToggle;
 
@@ -854,24 +796,10 @@ class _ExerciseGroup extends StatelessWidget {
             children: [
               Image.asset(AppIcons.vanDongNhe, width: 40, height: 40),
               const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Hoàn thành vận động',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                    ),
-                    Text(
-                      awarded
-                          ? 'Đã nhận +$rewardPoints điểm'
-                          : 'Đủ sáng + xế chiều để +$rewardPoints điểm (tối tùy chọn)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+              const Expanded(
+                child: Text(
+                  'Hoàn thành vận động',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                 ),
               ),
               Text(
@@ -902,8 +830,17 @@ class _ExerciseGroup extends StatelessWidget {
               note: defs[i].note,
               optional: defs[i].optional,
               done: slots[i],
-              missed: !slots[i] && defs[i].isPast(AppClock.instance.now()),
-              locked: defs[i].isPast(AppClock.instance.now()),
+              missed:
+                  !slots[i] &&
+                  ExerciseFabSchedule.isSlotPast(i, AppClock.instance.now()),
+              active: ExerciseFabSchedule.isSlotActive(
+                i,
+                AppClock.instance.now(),
+              ),
+              locked: !ExerciseFabSchedule.isSlotActive(
+                i,
+                AppClock.instance.now(),
+              ),
               onTap: () => onToggle(i),
             ),
         ],
@@ -920,6 +857,7 @@ class _ExerciseSlotChip extends StatelessWidget {
     required this.optional,
     required this.done,
     required this.missed,
+    required this.active,
     required this.locked,
     required this.onTap,
   });
@@ -930,13 +868,15 @@ class _ExerciseSlotChip extends StatelessWidget {
   final bool optional;
   final bool done;
   final bool missed;
+  final bool active;
   final bool locked;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final label =
-        optional ? '$title (tùy chọn) · $duration' : '$title · $duration';
+    final label = optional
+        ? '$title (tùy chọn) · $duration'
+        : '$title · $duration';
 
     final Color bg;
     final IconData icon;
@@ -960,68 +900,74 @@ class _ExerciseSlotChip extends StatelessWidget {
       status = null;
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: locked ? null : onTap,
+    return Opacity(
+      opacity: done || missed || active ? 1 : 0.38,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Material(
+          color: bg,
           borderRadius: BorderRadius.circular(10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: missed
-                  ? Border.all(color: AppColors.error.withValues(alpha: 0.35))
-                  : null,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Icon(icon, size: 20, color: iconColor),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: missed
-                              ? AppColors.error
-                              : AppColors.textPrimary,
-                          decoration:
-                              done ? TextDecoration.lineThrough : null,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        note,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: missed
-                              ? AppColors.error.withValues(alpha: 0.75)
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
+          child: InkWell(
+            onTap: locked ? null : onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: missed
+                    ? Border.all(color: AppColors.error.withValues(alpha: 0.35))
+                    : null,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Icon(icon, size: 20, color: iconColor),
                   ),
-                ),
-                if (status != null)
-                  Text(
-                    status,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: missed ? AppColors.error : AppColors.textSecondary,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: missed
+                                ? AppColors.error
+                                : AppColors.textPrimary,
+                            decoration: done
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          note,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: missed
+                                ? AppColors.error.withValues(alpha: 0.75)
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-              ],
+                  if (status != null)
+                    Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: missed
+                            ? AppColors.error
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1039,7 +985,6 @@ class _MealOnTimeGroup extends StatelessWidget {
     required this.lunchMissed,
     required this.dinnerMissed,
     required this.doneCount,
-    required this.rewardPoints,
     required this.awarded,
   });
 
@@ -1050,7 +995,6 @@ class _MealOnTimeGroup extends StatelessWidget {
   final bool lunchMissed;
   final bool dinnerMissed;
   final int doneCount;
-  final int rewardPoints;
   final bool awarded;
 
   @override
@@ -1072,24 +1016,10 @@ class _MealOnTimeGroup extends StatelessWidget {
             children: [
               Image.asset(AppIcons.khungGio, width: 40, height: 40),
               const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Ăn đúng giờ',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                    ),
-                    Text(
-                      awarded
-                          ? 'Đã nhận +$rewardPoints điểm'
-                          : 'Chụp/up ảnh trong khung giờ · 3/3 bữa để +$rewardPoints điểm',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+              const Expanded(
+                child: Text(
+                  'Ăn đúng giờ',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                 ),
               ),
               Text(
@@ -1118,16 +1048,8 @@ class _MealOnTimeGroup extends StatelessWidget {
             done: breakfast,
             missed: breakfastMissed,
           ),
-          _MealSlotChip(
-            label: 'Buổi trưa',
-            done: lunch,
-            missed: lunchMissed,
-          ),
-          _MealSlotChip(
-            label: 'Buổi tối',
-            done: dinner,
-            missed: dinnerMissed,
-          ),
+          _MealSlotChip(label: 'Buổi trưa', done: lunch, missed: lunchMissed),
+          _MealSlotChip(label: 'Buổi tối', done: dinner, missed: dinnerMissed),
         ],
       ),
     );

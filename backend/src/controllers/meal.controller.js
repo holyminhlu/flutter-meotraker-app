@@ -2,13 +2,15 @@ const AppError = require('../utils/AppError');
 const { analyzeMealImage } = require('../services/meal_analysis.service');
 const mealStore = require('../services/meal_store.service');
 
-function dateKeyFromIso(iso) {
-  try {
-    const d = iso ? new Date(iso) : new Date();
-    return d.toISOString().slice(0, 10);
-  } catch (_) {
-    return new Date().toISOString().slice(0, 10);
-  }
+/** Ngày ghi nhận theo lịch của người dùng, không theo UTC của server. */
+function dateKeyFromIso(iso, tzOffsetMinutes) {
+  const d = iso ? new Date(iso) : new Date();
+  const base = Number.isNaN(d.getTime()) ? new Date() : d;
+  const offset = Number.isFinite(Number(tzOffsetMinutes))
+    ? Number(tzOffsetMinutes)
+    : 0;
+  const shifted = new Date(base.getTime() + offset * 60 * 1000);
+  return shifted.toISOString().slice(0, 10);
 }
 
 function buildSimpleAdvice(foodItems, description) {
@@ -35,10 +37,13 @@ async function analyze(req, res, next) {
       windowStartIso,
       windowEndIso,
       timingStatus,
+      tzOffsetMinutes,
     } = req.body || {};
     if (!imageBase64) {
       throw new AppError('imageBase64 là bắt buộc', 400);
     }
+
+    const dateKey = dateKeyFromIso(clientNowIso, tzOffsetMinutes);
 
     const raw = Buffer.from(
       String(imageBase64).replace(/^data:[^;]+;base64,/, ''),
@@ -52,6 +57,7 @@ async function analyze(req, res, next) {
       windowStartIso,
       windowEndIso,
       timingStatus,
+      tzOffsetMinutes,
     });
 
     let savedMeal = null;
@@ -69,7 +75,7 @@ async function analyze(req, res, next) {
       try {
         imagePath = await mealStore.saveMealAvif({
           userId: req.user.id,
-          dateKey: dateKeyFromIso(clientNowIso),
+          dateKey,
           period: mealPeriod,
           imageBuffer: raw,
         });
@@ -80,7 +86,7 @@ async function analyze(req, res, next) {
       const advice = buildSimpleAdvice(foodItems, description);
       savedMeal = await mealStore.upsertMealEntry({
         userId: req.user.id,
-        dateKey: dateKeyFromIso(clientNowIso),
+        dateKey,
         period: mealPeriod,
         foodItems,
         description,
