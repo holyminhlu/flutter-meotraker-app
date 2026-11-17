@@ -97,8 +97,6 @@ tập thể dục có hướng dẫn, tích điểm — streak, và trợ lý AI
 <div align="center">
 <img src="mobile/assets/images/ruong15d.png" width="80" />
 <img src="mobile/assets/images/ruong30d.png" width="80" />
-<img src="mobile/assets/images/ruongVIP.png" width="80" />
-<img src="mobile/assets/images/ruongSupperVIP.png" width="80" />
 </div>
 
 ---
